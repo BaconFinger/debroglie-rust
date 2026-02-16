@@ -1,12 +1,12 @@
-use std::cell::{RefCell, UnsafeCell};
+use std::cell::{RefCell};
 use std::rc::Rc;
-use crate::procedural_generation::debroglie::context::{Context, TopologyId, WavePropagatorId};
-use crate::procedural_generation::debroglie::resolution::Resolution;
-use crate::procedural_generation::debroglie::topology::direction::Direction;
-use crate::procedural_generation::debroglie::topology::topology::Topology;
-use crate::procedural_generation::debroglie::wfc::pattern_model::PatternModel;
-use crate::procedural_generation::debroglie::wfc::pattern_model_constraint::PatternModelConstraint;
-use crate::procedural_generation::debroglie::wfc::wave_propagator::{IndexPatternItem, WavePropagator};
+use crate::context::{Context, TopologyId, WavePropagatorId};
+use crate::resolution::Resolution;
+use crate::topology::direction::Direction;
+use crate::topology::topology::Topology;
+use crate::wfc::pattern_model::PatternModel;
+use crate::wfc::pattern_model_constraint::PatternModelConstraint;
+use crate::wfc::wave_propagator::{IndexPatternItem, WavePropagator};
 
 /// Implements pattern adjacency propagation using the arc consistency 4 algorithm.
 ///

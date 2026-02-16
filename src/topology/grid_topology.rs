@@ -1,8 +1,8 @@
 use std::any::Any;
 use std::fmt;
-use crate::procedural_generation::debroglie::context::TopologyId;
-use crate::procedural_generation::debroglie::topology::direction::{Direction, DirectionSet, EdgeLabel};
-use crate::procedural_generation::debroglie::topology::topology::{Topology, TopologyError};
+use crate::context::TopologyId;
+use crate::topology::direction::{Direction, DirectionSet, EdgeLabel};
+use crate::topology::topology::{Topology, TopologyError};
 
 /// A grid topology is a topology with a regular repeating pattern.
 /// It supports more operations than a generic topology.

@@ -1,6 +1,6 @@
 use std::rc::Rc;
-use crate::procedural_generation::debroglie::context::{Context, WaveId};
-use crate::procedural_generation::debroglie::topology::topology::Topology;
+use crate::context::{Context, WaveId};
+use crate::topology::topology::Topology;
 
 pub struct RandomPickerUtils;
 

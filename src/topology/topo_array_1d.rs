@@ -1,9 +1,9 @@
 use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::rc::Rc;
-use crate::procedural_generation::debroglie::context::{Context, TopologyId};
-use crate::procedural_generation::debroglie::topology::topo_array::TopoArray;
-use crate::procedural_generation::debroglie::topology::topology::{Topology, TopologyError};
+use crate::context::{Context, TopologyId};
+use crate::topology::topo_array::TopoArray;
+use crate::topology::topology::{Topology, TopologyError};
 
 /// A 1D topological array implementation
 pub struct TopoArray1D<T, TopologyT: Topology + Clone> {

@@ -1,13 +1,12 @@
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
-use crate::procedural_generation::debroglie::context::{Context, TrackerId, WaveId, WavePropagatorId};
-use crate::procedural_generation::debroglie::topology::topology::Topology;
-use crate::procedural_generation::debroglie::trackers::index_picker::IndexPicker;
-use crate::procedural_generation::debroglie::trackers::pattern_picker::PatternPicker;
-use crate::procedural_generation::debroglie::trackers::tracker::{SuperTracker, Tracker};
-use crate::procedural_generation::debroglie::wfc::wave::Wave;
-use crate::procedural_generation::debroglie::wfc::wave_propagator::WavePropagator;
+use crate::context::{Context, TrackerId, WaveId};
+use crate::topology::topology::Topology;
+use crate::trackers::index_picker::IndexPicker;
+use crate::trackers::pattern_picker::PatternPicker;
+use crate::trackers::tracker::{SuperTracker, Tracker};
+use crate::wfc::wave::Wave;
+use crate::wfc::wave_propagator::WavePropagator;
 
 pub struct EntropyTracker {
     pattern_count: usize,

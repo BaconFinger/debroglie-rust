@@ -1,7 +1,4 @@
-use std::cell::RefCell;
-use std::cmp::Ordering;
 use std::marker::PhantomData;
-use std::rc::Rc;
 
 /// Trait for types that can be stored in a heap
 pub trait HeapNode<TKey>

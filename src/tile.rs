@@ -1,8 +1,7 @@
-use std::any::{type_name, Any, TypeId};
 use std::fmt;
 use std::fmt::{Debug, Display};
 use std::hash::{Hash, Hasher};
-use serde::{Deserialize, Serialize};
+use serde_derive::{Deserialize, Serialize};
 
 /// Thin wrapper around a value of any type. This is primarily what the library takes in and puts out.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -124,7 +123,7 @@ impl ToTile for char {
 }
 
 // mod tests {
-//     use crate::procedural_generation::debroglie::tile::Tile;
+//     use crate::tile::Tile;
 //
 //     #[test]
 //     fn value_type() {

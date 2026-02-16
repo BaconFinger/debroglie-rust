@@ -1,10 +1,10 @@
 use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::rc::Rc;
-use crate::procedural_generation::debroglie::context::Context;
-use crate::procedural_generation::debroglie::topology::topology::Topology;
-use crate::procedural_generation::debroglie::trackers::tracker::ChoiceObserver;
-use crate::procedural_generation::debroglie::wfc::wave_propagator::WavePropagator;
+use crate::context::Context;
+use crate::topology::topology::Topology;
+use crate::trackers::tracker::ChoiceObserver;
+use crate::wfc::wave_propagator::WavePropagator;
 
 pub trait BacktrackPolicy<T: Topology + Clone> {
     fn init(&mut self, ctx: &Context<T>, wave_propagator: &mut WavePropagator<T>) -> Result<(), String>;
@@ -49,7 +49,6 @@ pub struct PatienceBackjumpPolicy<T: Topology + Clone> {
     max_depth: i32,
     start: i64,
     levels: Option<Vec<Level>>,
-    identifier: String,
     _phantom: PhantomData<T>,
 }
 
@@ -61,7 +60,6 @@ impl<T: Topology + Clone> PatienceBackjumpPolicy<T> {
             max_depth: 0,
             start: 0,
             levels: None,
-            identifier: uuid::Uuid::new_v4().to_string(),
             _phantom: PhantomData
         }
     }
@@ -84,7 +82,6 @@ impl<T: Topology + Clone> BacktrackPolicy<T> for PatienceBackjumpPolicy<T> {
     fn init(&mut self, ctx: &Context<T>, wave_propagator: &mut WavePropagator<T>) -> Result<(), String> {
         let choice_observer = PatienceChoiceObserver {
             policy: self as *mut PatienceBackjumpPolicy<T>,
-            identifier: uuid::Uuid::new_v4().to_string(),
         };
         let id = ctx.choice_observers().add(Rc::new(RefCell::new(choice_observer)));
         wave_propagator.add_choice_observer(id);
@@ -151,17 +148,12 @@ impl<T: Topology + Clone> ChoiceObserver for PatienceBackjumpPolicy<T> {
         self.counter += 1;
         self.depth -= 1;
     }
-
-    fn get_identifier(&self) -> &str {
-        return self.identifier.as_str();
-    }
 }
 
 // Helper struct to implement ChoiceObserver for the policy
 // This is needed because we need to share the policy between the wave propagator and the observer
 struct PatienceChoiceObserver<T: Topology + Clone> {
     policy: *mut PatienceBackjumpPolicy<T>,
-    identifier: String,
 }
 
 impl<T: Topology + Clone> ChoiceObserver for PatienceChoiceObserver<T> {
@@ -175,10 +167,6 @@ impl<T: Topology + Clone> ChoiceObserver for PatienceChoiceObserver<T> {
         unsafe {
             (*self.policy).backtrack();
         }
-    }
-
-    fn get_identifier(&self) -> &str {
-        return self.identifier.as_str();
     }
 }
 

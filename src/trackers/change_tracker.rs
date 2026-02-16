@@ -2,11 +2,10 @@ use std::cell::RefCell;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
-use crate::procedural_generation::debroglie::context::{Context, TileModelMappingId};
-use crate::procedural_generation::debroglie::models::tile_model_mapping::TileModelMapping;
-use crate::procedural_generation::debroglie::topology::topology::{Topology, TopologyError};
-use crate::procedural_generation::debroglie::trackers::tracker::Tracker;
+use crate::context::{Context, TileModelMappingId};
+use crate::models::tile_model_mapping::TileModelMapping;
+use crate::topology::topology::{Topology, TopologyError};
+use crate::trackers::tracker::Tracker;
 
 pub struct ChangeTracker<T: Topology + Clone> {
     tile_model_mapping: TileModelMappingId,

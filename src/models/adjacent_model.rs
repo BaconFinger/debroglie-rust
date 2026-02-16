@@ -1,18 +1,14 @@
-use crate::procedural_generation::debroglie::context::{Context, TileId, TopologyId};
-use crate::procedural_generation::debroglie::models::tile_model::TileModel;
-use crate::procedural_generation::debroglie::tile::{Tile, TileVisual};
-use crate::procedural_generation::debroglie::topology::direction::{
+use crate::context::{Context, TileId, TopologyId};
+use crate::models::tile_model::TileModel;
+use crate::topology::direction::{
     Direction, DirectionSet, DirectionSetType,
 };
-use crate::procedural_generation::debroglie::topology::grid_topology::GridTopology;
-use crate::procedural_generation::debroglie::topology::topo_array::TopoArray;
-use crate::procedural_generation::debroglie::topology::topology::Topology;
-use std::cell::RefCell;
+use crate::topology::grid_topology::GridTopology;
+use crate::topology::topo_array::TopoArray;
+use crate::topology::topology::Topology;
 use std::collections::{HashMap, HashSet};
-use std::ops::Deref;
-use std::rc::Rc;
-use crate::procedural_generation::debroglie::models::tile_model_mapping::TileModelMapping;
-use crate::procedural_generation::debroglie::wfc::pattern_model::PatternModel;
+use crate::models::tile_model_mapping::TileModelMapping;
+use crate::wfc::pattern_model::PatternModel;
 
 /// AdjacentModel constrains which tiles can be placed adjacent to which other ones.
 /// It does so by maintaining for each tile, a list of tiles that can be placed next to it in each direction.

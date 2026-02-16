@@ -1,15 +1,15 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Mutex;
-use crate::procedural_generation::debroglie::context::{Context, TileId};
-use crate::procedural_generation::debroglie::models::adjacent_model::AdjacentModel;
-use crate::procedural_generation::debroglie::resolution::Resolution;
-use crate::procedural_generation::debroglie::tile::{Tile, TileVisual, ToTile, ToTileVisual};
-use crate::procedural_generation::debroglie::tile_propagator::TilePropagator;
-use crate::procedural_generation::debroglie::tile_propagator_options::{BacktrackType, TilePropagatorOptions};
-use crate::procedural_generation::debroglie::topology::grid_topology::GridTopology;
-use crate::procedural_generation::debroglie::topology::ragged_topology_array_2d::RaggedTopoArray2D;
-use crate::procedural_generation::debroglie::topology::topo_array::TopoArray;
+use crate::context::{Context, TileId};
+use crate::models::adjacent_model::AdjacentModel;
+use crate::resolution::Resolution;
+use crate::tile::{Tile, TileVisual, ToTile, ToTileVisual};
+use crate::tile_propagator::TilePropagator;
+use crate::tile_propagator_options::{BacktrackType, TilePropagatorOptions};
+use crate::topology::grid_topology::GridTopology;
+use crate::topology::ragged_topology_array_2d::RaggedTopoArray2D;
+use crate::topology::topo_array::TopoArray;
 
 #[cfg(test)]
 

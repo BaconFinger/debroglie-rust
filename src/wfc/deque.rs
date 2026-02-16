@@ -1,5 +1,3 @@
-use std::mem;
-
 #[derive(Debug)]
 pub struct Deque<T> {
     data: Vec<T>,

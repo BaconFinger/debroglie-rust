@@ -1,23 +1,19 @@
 use std::any::Any;
-use std::cell::{Ref, RefCell, UnsafeCell};
-use std::marker::PhantomData;
+use std::cell::{RefCell};
 use std::rc::Rc;
-use bevy_rapier2d::na::DimAdd;
 use slotmap::{new_key_type, Key, SlotMap};
-use crate::procedural_generation::debroglie::constraints::tile_constraint::TileConstraint;
-use crate::procedural_generation::debroglie::models::adjacent_model::AdjacentModel;
-use crate::procedural_generation::debroglie::models::tile_model::TileModel;
-use crate::procedural_generation::debroglie::models::tile_model_mapping::TileModelMapping;
-use crate::procedural_generation::debroglie::tile::Tile;
-use crate::procedural_generation::debroglie::tile_propagator::TilePropagator;
-use crate::procedural_generation::debroglie::topology::grid_topology::GridTopology;
-use crate::procedural_generation::debroglie::topology::topology::Topology;
-use crate::procedural_generation::debroglie::trackers::index_picker::IndexPicker;
-use crate::procedural_generation::debroglie::trackers::pattern_picker::PatternPicker;
-use crate::procedural_generation::debroglie::trackers::tracker::{ChoiceObserver, SuperTracker, Tracker};
-use crate::procedural_generation::debroglie::wfc::backtrack_policy::BacktrackPolicy;
-use crate::procedural_generation::debroglie::wfc::wave::Wave;
-use crate::procedural_generation::debroglie::wfc::wave_propagator::{WavePropagator};
+use crate::constraints::tile_constraint::TileConstraint;
+use crate::models::adjacent_model::AdjacentModel;
+use crate::models::tile_model::TileModel;
+use crate::models::tile_model_mapping::TileModelMapping;
+use crate::tile::Tile;
+use crate::tile_propagator::TilePropagator;
+use crate::topology::grid_topology::GridTopology;
+use crate::topology::topology::Topology;
+use crate::trackers::tracker::{ChoiceObserver, SuperTracker};
+use crate::wfc::backtrack_policy::BacktrackPolicy;
+use crate::wfc::wave::Wave;
+use crate::wfc::wave_propagator::{WavePropagator};
 
 new_key_type! {
     pub struct TileId;
@@ -305,9 +301,9 @@ impl<T> TopologyStorage<T> where T: Topology + Clone + 'static {
 mod tests {
     use std::cell::RefCell;
     use std::rc::Rc;
-    use crate::procedural_generation::debroglie::context::{Context, TileId};
-    use crate::procedural_generation::debroglie::tile::Tile;
-    use crate::procedural_generation::debroglie::topology::grid_topology::GridTopology;
+    use crate::context::{Context, TileId};
+    use crate::tile::Tile;
+    use crate::topology::grid_topology::GridTopology;
 
     #[test]
     fn test_it() {

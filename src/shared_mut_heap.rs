@@ -1,8 +1,7 @@
 use std::cell::RefCell;
-use std::cmp::Ordering;
 use std::marker::PhantomData;
 use std::rc::Rc;
-use crate::procedural_generation::debroglie::heap::HeapNode;
+use crate::heap::HeapNode;
 
 /// Implements a basic min-key heap.
 /// Items are kept in an RcRefCell so they can be mutated by both this class and the parent.

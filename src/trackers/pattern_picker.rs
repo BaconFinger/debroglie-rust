@@ -1,7 +1,7 @@
 use std::rc::Rc;
-use crate::procedural_generation::debroglie::context::{Context, TrackerId, WavePropagatorId};
-use crate::procedural_generation::debroglie::topology::topology::Topology;
-use crate::procedural_generation::debroglie::wfc::wave_propagator::WavePropagator;
+use crate::context::{Context};
+use crate::topology::topology::Topology;
+use crate::wfc::wave_propagator::WavePropagator;
 
 pub trait PatternPicker<T: Topology + Clone> {
     fn init(&mut self, wave_propagator: &WavePropagator<T>) -> Result<(), String>;

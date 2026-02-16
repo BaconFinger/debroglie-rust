@@ -1,13 +1,12 @@
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
-use crate::procedural_generation::debroglie::context::{ConstraintId, TileId};
-use crate::procedural_generation::debroglie::tile_propagator::DummyTopoArray;
-use crate::procedural_generation::debroglie::topology::topo_array::TopoArray;
-use crate::procedural_generation::debroglie::topology::topology::Topology;
-use crate::procedural_generation::debroglie::wfc::wave_propagator::ModelConstraintAlgorithm;
+use crate::context::{ConstraintId, TileId};
+use crate::tile_propagator::DummyTopoArray;
+use crate::topology::topo_array::TopoArray;
+use crate::topology::topology::Topology;
+use crate::wfc::wave_propagator::ModelConstraintAlgorithm;
 
 #[derive(Debug, Clone)]
 pub struct PriorityAndWeight {

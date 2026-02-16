@@ -1,7 +1,7 @@
 use std::collections::HashSet;
-use crate::procedural_generation::debroglie::context::{Context, TileModelMappingId, TopologyId};
-use crate::procedural_generation::debroglie::models::tile_model_mapping::TileModelMapping;
-use crate::procedural_generation::debroglie::topology::topology::Topology;
+use crate::context::{Context, TileModelMappingId, TopologyId};
+use crate::models::tile_model_mapping::TileModelMapping;
+use crate::topology::topology::Topology;
 
 /// Base trait for the models used in generation.
 ///

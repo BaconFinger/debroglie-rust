@@ -1,21 +1,17 @@
-use std::any::Any;
 use std::cell::RefCell;
-use std::marker::PhantomData;
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
 use ordered_float::OrderedFloat;
-use crate::procedural_generation::debroglie::context::{Context, TrackerId, WaveId};
-use crate::procedural_generation::debroglie::shared_mut_heap::{SharedMutHeap};
-use crate::procedural_generation::debroglie::heap::{HeapNode};
-use crate::procedural_generation::debroglie::models::tile_model_mapping::TileModelMapping;
-use crate::procedural_generation::debroglie::tile_propagator::AsIndexPicker;
-use crate::procedural_generation::debroglie::topology::topology::Topology;
-use crate::procedural_generation::debroglie::trackers::change_tracker::ChangeTracker;
-use crate::procedural_generation::debroglie::trackers::index_picker::IndexPicker;
-use crate::procedural_generation::debroglie::trackers::pattern_picker::PatternPicker;
-use crate::procedural_generation::debroglie::trackers::tracker::{SuperTracker, Tracker};
-use crate::procedural_generation::debroglie::wfc::wave::Wave;
-use crate::procedural_generation::debroglie::wfc::wave_propagator::WavePropagator;
+use crate::context::{Context, TrackerId, WaveId};
+use crate::shared_mut_heap::{SharedMutHeap};
+use crate::heap::{HeapNode};
+use crate::models::tile_model_mapping::TileModelMapping;
+use crate::topology::topology::Topology;
+use crate::trackers::change_tracker::ChangeTracker;
+use crate::trackers::index_picker::IndexPicker;
+use crate::trackers::pattern_picker::PatternPicker;
+use crate::trackers::tracker::{SuperTracker, Tracker};
+use crate::wfc::wave::Wave;
+use crate::wfc::wave_propagator::WavePropagator;
 
 pub struct HeapEntropyTracker<T: Topology + Clone> {
     pattern_count: usize,
@@ -357,7 +353,6 @@ struct EntropyValues {
     index: usize,
     heap_index: Option<usize>,
     tiebreaker: f64,
-    identifier: uuid::Uuid,
 }
 
 impl EntropyValues {
@@ -369,7 +364,6 @@ impl EntropyValues {
             index: 0,
             heap_index: Some(0),
             tiebreaker: 0.0,
-            identifier: uuid::Uuid::new_v4(),
         }
     }
 
@@ -381,7 +375,6 @@ impl EntropyValues {
             index: other.index,
             heap_index: other.heap_index,
             tiebreaker: other.tiebreaker,
-            identifier: other.identifier, // Maybe the identifier should be different?
         }
     }
 
@@ -406,10 +399,6 @@ impl EntropyValues {
     fn increment(&mut self, p: f64, plogp: f64) {
         self.plogp_sum += plogp;
         self.sum += p;
-    }
-
-    fn identifier(&self) -> &uuid::Uuid {
-        &self.identifier
     }
 }
 

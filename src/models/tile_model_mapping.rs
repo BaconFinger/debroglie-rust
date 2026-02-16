@@ -1,13 +1,13 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, LazyLock, Mutex};
-use crate::procedural_generation::debroglie::context::{Context, TileId, TopologyId};
-use crate::procedural_generation::debroglie::point::Point;
-use crate::procedural_generation::debroglie::tile::Tile;
-use crate::procedural_generation::debroglie::tile_propagator_tile_set::TilePropagatorTileSet;
-use crate::procedural_generation::debroglie::topology::grid_topology::GridTopology;
-use crate::procedural_generation::debroglie::topology::topo_array::TopoArray;
-use crate::procedural_generation::debroglie::topology::topology::Topology;
-use crate::procedural_generation::debroglie::wfc::pattern_model::PatternModel;
+use crate::context::{Context, TileId, TopologyId};
+use crate::point::Point;
+use crate::tile::Tile;
+use crate::tile_propagator_tile_set::TilePropagatorTileSet;
+use crate::topology::grid_topology::GridTopology;
+use crate::topology::topo_array::TopoArray;
+use crate::topology::topology::Topology;
+use crate::wfc::pattern_model::PatternModel;
 
 static EMPTY_PATTERN_SET: LazyLock<HashSet<usize>> = LazyLock::new(|| HashSet::new());
 

@@ -1,9 +1,9 @@
 use std::cell::RefCell;
 use std::rc::Rc;
-use crate::procedural_generation::debroglie::context::{Context, TopologyId};
-use crate::procedural_generation::debroglie::topology::grid_topology::GridTopology;
-use crate::procedural_generation::debroglie::topology::ragged_topology_array_2d::{RaggedTopoArray2D, RaggedTopoArray2DGeneric};
-use crate::procedural_generation::debroglie::topology::topology::{Topology, TopologyError};
+use crate::context::{Context, TopologyId};
+use crate::topology::grid_topology::GridTopology;
+use crate::topology::ragged_topology_array_2d::{RaggedTopoArray2D, RaggedTopoArray2DGeneric};
+use crate::topology::topology::{Topology, TopologyError};
 
 /// A read-only array coupled with a specific Topology
 pub trait TopoArray<T, Topo: Topology + Clone> {

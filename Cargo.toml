@@ -4,3 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+slotmap = "1.1.1"
+serde = "1.0.228"
+serde_derive = "1.0.228"
+ordered-float = "5.1.0"

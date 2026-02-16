@@ -1,24 +1,20 @@
 use std::cell::RefCell;
 use std::collections::VecDeque;
-use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
-use bevy::reflect::List;
-use crate::procedural_generation::debroglie::context::{BacktrackPolicyId, ChoiceObserverId, Context, TopologyId, TrackerId, WaveConstraintId, WaveId, WavePropagatorId};
-use crate::procedural_generation::debroglie::resolution::Resolution;
-use crate::procedural_generation::debroglie::topology::topology::Topology;
-use crate::procedural_generation::debroglie::trackers::entropy_tracker::EntropyTracker;
-use crate::procedural_generation::debroglie::trackers::index_picker::IndexPicker;
-use crate::procedural_generation::debroglie::trackers::pattern_picker::PatternPicker;
-use crate::procedural_generation::debroglie::trackers::tracker::{ChoiceObserver, SuperTracker, Tracker};
-use crate::procedural_generation::debroglie::trackers::weighted_random_pattern_picker::WeightedRandomPatternPicker;
-use crate::procedural_generation::debroglie::wfc::act_4_pattern_model_constraint::Ac4PatternModelConstraint;
-use crate::procedural_generation::debroglie::wfc::backtrack_policy::BacktrackPolicy;
-use crate::procedural_generation::debroglie::wfc::deque::Deque;
-use crate::procedural_generation::debroglie::wfc::pattern_model::PatternModel;
-use crate::procedural_generation::debroglie::wfc::pattern_model_constraint::{Ac3PatternModelConstraint, OneStepPatternModelConstraint, PatternModelConstraint};
-use crate::procedural_generation::debroglie::wfc::wave::Wave;
+use std::time::{Instant};
+use crate::context::{BacktrackPolicyId, ChoiceObserverId, Context, TopologyId, TrackerId, WaveConstraintId, WaveId, WavePropagatorId};
+use crate::resolution::Resolution;
+use crate::topology::topology::Topology;
+use crate::trackers::entropy_tracker::EntropyTracker;
+use crate::trackers::index_picker::IndexPicker;
+use crate::trackers::pattern_picker::PatternPicker;
+use crate::trackers::tracker::{ChoiceObserver, SuperTracker};
+use crate::trackers::weighted_random_pattern_picker::WeightedRandomPatternPicker;
+use crate::wfc::act_4_pattern_model_constraint::Ac4PatternModelConstraint;
+use crate::wfc::backtrack_policy::BacktrackPolicy;
+use crate::wfc::pattern_model::PatternModel;
+use crate::wfc::pattern_model_constraint::{Ac3PatternModelConstraint, OneStepPatternModelConstraint, PatternModelConstraint};
+use crate::wfc::wave::Wave;
 
 // Compile time optimizations
 pub struct Optimizations;

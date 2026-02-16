@@ -1,5 +1,5 @@
-use crate::procedural_generation::debroglie::context::{Context, TilePropagatorId};
-use crate::procedural_generation::debroglie::topology::topology::Topology;
+use crate::context::{Context, TilePropagatorId};
+use crate::topology::topology::Topology;
 
 /// Interface for specifying non-local constraints to be respected during generation.
 pub trait TileConstraint<T>

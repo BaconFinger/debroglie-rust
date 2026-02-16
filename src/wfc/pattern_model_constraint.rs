@@ -1,5 +1,5 @@
-use crate::procedural_generation::debroglie::context::Context;
-use crate::procedural_generation::debroglie::topology::topology::Topology;
+use crate::context::Context;
+use crate::topology::topology::Topology;
 
 pub trait PatternModelConstraint<T: Topology + Clone> {
     fn do_ban(&mut self, ctx: &Context<T>, index: usize, pattern: i32);

@@ -1,11 +1,7 @@
-use std::any::Any;
-use std::cell::RefCell;
-use std::rc::Rc;
-use crate::procedural_generation::debroglie::context::{Context, TrackerId};
-use crate::procedural_generation::debroglie::topology::topology::Topology;
-use crate::procedural_generation::debroglie::trackers::index_picker::IndexPicker;
-use crate::procedural_generation::debroglie::trackers::pattern_picker::PatternPicker;
-use crate::procedural_generation::debroglie::wfc::wave_propagator::WavePropagator;
+use crate::context::{Context, TrackerId};
+use crate::topology::topology::Topology;
+use crate::trackers::index_picker::IndexPicker;
+use crate::trackers::pattern_picker::PatternPicker;
 
 /// Callback for when choices/backtracks occur on WavePropagator
 /// TODO: Move this trait elsewhere?
@@ -15,8 +11,6 @@ pub trait ChoiceObserver {
 
     /// Called after the wave propagator is backtracked
     fn backtrack(&mut self);
-
-    fn get_identifier(&self) -> &str;
 }
 
 /// Trackers are objects that maintain state that is a summary of the current state of the propagator.

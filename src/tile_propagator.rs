@@ -1,27 +1,24 @@
-use std::any::Any;
 use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
-use bevy::render::render_resource::encase::private::RuntimeSizedArray;
-use bevy_rapier2d::na::DimAdd;
-use crate::procedural_generation::debroglie::context::{ConstraintId, Context, ModelId, TileId, TileModelMappingId, TilePropagatorId, TopologyId, TrackerId, WaveConstraintId, WavePropagatorId};
-use crate::procedural_generation::debroglie::models::tile_model::TileModel;
-use crate::procedural_generation::debroglie::models::tile_model_mapping::TileModelMapping;
-use crate::procedural_generation::debroglie::resolution::Resolution;
-use crate::procedural_generation::debroglie::tile::{Tile, TileVisual};
-use crate::procedural_generation::debroglie::tile_propagator_options::{BacktrackType, IndexPickerType, TilePickerType, TilePropagatorOptions};
-use crate::procedural_generation::debroglie::topology::topo_array::TopoArray;
-use crate::procedural_generation::debroglie::topology::topo_array_1d::TopoArray1D;
-use crate::procedural_generation::debroglie::topology::topology::{Topology, TopologyError};
-use crate::procedural_generation::debroglie::trackers::entropy_tracker::EntropyTracker;
-use crate::procedural_generation::debroglie::trackers::heap_entropy_tracker::HeapEntropyTracker;
-use crate::procedural_generation::debroglie::trackers::index_picker::IndexPicker;
-use crate::procedural_generation::debroglie::trackers::pattern_picker::PatternPicker;
-use crate::procedural_generation::debroglie::trackers::tracker::SuperTracker;
-use crate::procedural_generation::debroglie::trackers::weighted_random_pattern_picker::WeightedRandomPatternPicker;
-use crate::procedural_generation::debroglie::wfc::backtrack_policy::{BacktrackPolicy, ConstantBacktrackPolicy, PatienceBackjumpPolicy};
-use crate::procedural_generation::debroglie::wfc::wave_propagator::{ModelConstraintAlgorithm, WavePropagator, WavePropagatorOptions};
+use crate::context::{ConstraintId, Context, ModelId, TileId, TileModelMappingId, TilePropagatorId, TopologyId, TrackerId, WaveConstraintId, WavePropagatorId};
+use crate::models::tile_model::TileModel;
+use crate::models::tile_model_mapping::TileModelMapping;
+use crate::resolution::Resolution;
+use crate::tile::{Tile, TileVisual};
+use crate::tile_propagator_options::{BacktrackType, IndexPickerType, TilePickerType, TilePropagatorOptions};
+use crate::topology::topo_array::TopoArray;
+use crate::topology::topo_array_1d::TopoArray1D;
+use crate::topology::topology::{Topology, TopologyError};
+use crate::trackers::entropy_tracker::EntropyTracker;
+use crate::trackers::heap_entropy_tracker::HeapEntropyTracker;
+use crate::trackers::index_picker::IndexPicker;
+use crate::trackers::pattern_picker::PatternPicker;
+use crate::trackers::tracker::SuperTracker;
+use crate::trackers::weighted_random_pattern_picker::WeightedRandomPatternPicker;
+use crate::wfc::backtrack_policy::{BacktrackPolicy, ConstantBacktrackPolicy, PatienceBackjumpPolicy};
+use crate::wfc::wave_propagator::{ModelConstraintAlgorithm, WavePropagator, WavePropagatorOptions};
 
 /// TilePropagator is the main entrypoint to the DeBroglie library.
 /// It takes a TileModel and an output Topology and generates

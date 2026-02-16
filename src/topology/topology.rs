@@ -1,8 +1,8 @@
 use std::any::Any;
 use std::fmt;
-use crate::procedural_generation::debroglie::context::TopologyId;
-use crate::procedural_generation::debroglie::topology::direction::{Direction, EdgeLabel};
-use crate::procedural_generation::debroglie::topology::grid_topology::GridTopology;
+use crate::context::TopologyId;
+use crate::topology::direction::{Direction, EdgeLabel};
+use crate::topology::grid_topology::GridTopology;
 
 /// Error types for topology operations
 #[derive(Debug, Clone, PartialEq, Eq)]
