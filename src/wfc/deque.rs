@@ -16,7 +16,7 @@ impl<T> Deque<T> {
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
-        let mut data = Vec::with_capacity(capacity);
+        let data = Vec::with_capacity(capacity);
         // Fill with default values - we need to handle this carefully in Rust
         // For now, we'll use MaybeUninit pattern or require Default trait
         // unsafe {

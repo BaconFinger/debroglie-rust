@@ -134,7 +134,7 @@ where T: Topology + Clone + 'static
             model_constraint_algorithm: options.model_constraint_algorithm,
         };
 
-        let mut wave_propagator = WavePropagator::new(
+        let wave_propagator = WavePropagator::new(
             ctx,
             pattern_model,
             pattern_topology.clone(),

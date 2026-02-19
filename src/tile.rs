@@ -1,6 +1,6 @@
 use std::fmt;
 use std::fmt::{Debug, Display};
-use std::hash::{Hash, Hasher};
+use std::hash::Hasher;
 use serde_derive::{Deserialize, Serialize};
 
 /// Thin wrapper around a value of any type. This is primarily what the library takes in and puts out.

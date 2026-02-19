@@ -120,7 +120,7 @@ impl<V: Clone + 'static, T: Topology + Clone> TilePropagatorOptions<V, T> {
             constraints: constraints.unwrap_or(Vec::new()),
             // TODO: make customizable and seedable
             random_double: random_double.unwrap_or(Rc::new(|| {
-                use std::collections::hash_map::DefaultHasher;
+                
                 use std::hash::{Hash, Hasher};
                 use std::time::{SystemTime, UNIX_EPOCH};
 

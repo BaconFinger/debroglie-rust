@@ -139,7 +139,7 @@ impl<T: Topology + Clone> WavePropagator<T> {
             ctx.pattern_pickers().add(Rc::new(RefCell::new(default_picker)))
         });
 
-        let mut wave_propagator = Self {
+        let wave_propagator = Self {
             wave: None,
             pattern_model_constraint: Box::new(OneStepPatternModelConstraint),
             pattern_count,

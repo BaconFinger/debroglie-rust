@@ -1,15 +1,15 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Mutex;
-use crate::context::{Context, TileId};
-use crate::models::adjacent_model::AdjacentModel;
-use crate::resolution::Resolution;
-use crate::tile::{Tile, TileVisual, ToTile, ToTileVisual};
-use crate::tile_propagator::TilePropagator;
-use crate::tile_propagator_options::{BacktrackType, TilePropagatorOptions};
-use crate::topology::grid_topology::GridTopology;
-use crate::topology::ragged_topology_array_2d::RaggedTopoArray2D;
-use crate::topology::topo_array::TopoArray;
+use debroglie_rust::context::Context;
+use debroglie_rust::models::adjacent_model::AdjacentModel;
+use debroglie_rust::resolution::Resolution;
+use debroglie_rust::tile::{Tile, TileVisual, ToTile};
+use debroglie_rust::tile_propagator::TilePropagator;
+use debroglie_rust::tile_propagator_options::{BacktrackType, TilePropagatorOptions};
+use debroglie_rust::topology::grid_topology::GridTopology;
+use debroglie_rust::topology::ragged_topology_array_2d::RaggedTopoArray2D;
+use debroglie_rust::topology::topo_array::TopoArray;
 
 #[cfg(test)]
 
@@ -79,7 +79,7 @@ pub fn full_test() {
     model.add_sample_simple(&ctx, &sample).unwrap();
     let model = ctx.models().add(Rc::new(RefCell::new(model)));
 
-    let mut rng = Mutex::new(Pcg32::new(12345));
+    let rng = Mutex::new(Pcg32::new(12345));
     let random_double = Rc::new(move || {
         let mut rng = rng.lock().unwrap();
         let next = rng.next_f64();
@@ -118,6 +118,62 @@ pub fn full_test() {
             assert_eq!(format!("{}", *col), format!("{}", output_visuals[y][x]));
         }
     }
+}
+
+#[test]
+pub fn speed_test() {
+    // Arrange
+    let start = std::time::Instant::now();
+    let local_width = 200;
+    let local_height = 200;
+    let ctx: Context<GridTopology> = Context::new();
+
+    let initial_data = vec![
+        vec!['_', '_', '_'],
+        vec!['_', '*', '_'],
+        vec!['_', '_', '_'],
+    ];
+    let initial_vec = initial_data
+        .into_iter()
+        .map(|x| x
+            .clone()
+            .iter()
+            .map(|y| y.to_tile())
+            .collect::<Vec<Tile>>()
+        )
+        .collect::<Vec<Vec<Tile>>>();
+    let initial_vec = ctx.tiles().add_vec_2d(initial_vec);
+
+    let topology = GridTopology::new_2d(local_width, local_height, false);
+    let topology = ctx.topologies().add(topology);
+
+    let sample = RaggedTopoArray2D::new(&ctx, initial_vec, false);
+
+    let mut model = AdjacentModel::new();
+    model.add_sample_simple(&ctx, &sample).unwrap();
+    let model = ctx.models().add(Rc::new(RefCell::new(model)));
+
+    let rng = Mutex::new(Pcg32::new(12345));
+    let random_double = Rc::new(move || {
+        let mut rng = rng.lock().unwrap();
+        let next = rng.next_f64();
+        next
+    });
+
+    let mut tile_propagator_options = TilePropagatorOptions::new(true, Some(random_double), None);
+    tile_propagator_options.backtrack = BacktrackType::Backjump;
+
+    // Act
+    let tile_propagator = TilePropagator::with_options(&ctx, model.clone(), topology.clone(), tile_propagator_options).unwrap();
+    let tile_propagator = ctx.tile_propagators().get(tile_propagator).unwrap();
+    let status = tile_propagator.borrow_mut().run(&ctx).unwrap();
+    assert_ne!(status, Resolution::Contradiction);
+
+    let output = tile_propagator.borrow().to_value_array(&ctx);
+    assert!(output.is_ok());
+
+    let end = std::time::Instant::now();
+    println!("Time elapsed: {:?}", end - start);
 }
 
 fn output_to_visuals(ctx: &Context<GridTopology>, output_result: Box<dyn TopoArray<TileVisual, GridTopology>>) -> Vec<Vec<TileVisual>> {

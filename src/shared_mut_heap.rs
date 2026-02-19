@@ -94,12 +94,8 @@ where
         if self.size == 0 {
             return;
         }
-
-        // let start = Self::parent(self.size - 1);
-        // for i in (0..=start).rev() {
-        //     self.heapify_at(i);
-        // }
-        let start = Self::parent(self.size); // match C#
+        
+        let start = Self::parent(self.size); // match C#, was let start = Self::parent(self.size - 1);
         for i in (0..=start).rev() {
             self.heapify_at(i);
         }
@@ -128,43 +124,6 @@ where
             self.data[i].borrow_mut().set_heap_index(Some(i));
             self.heapify_at(smallest);
         }
-    }
-
-    /// Restores the heap property starting at the given index. Returns the new heap_index of the item we sent in.
-    fn heapify_at_with_new_index(&mut self, heap_index: usize, index: usize) -> usize {
-        let mut smallest = heap_index;
-        let l = Self::left(heap_index);
-        let r = Self::right(heap_index);
-
-        // Find the smallest among i, left child, and right child
-        if l < self.size && self.data[l].borrow_mut().key() < self.data[smallest].borrow_mut().key() {
-            smallest = l;
-        }
-
-        if r < self.size && self.data[r].borrow_mut().key() < self.data[smallest].borrow_mut().key() {
-            smallest = r;
-        }
-
-        if heap_index == smallest {
-            self.data[heap_index].borrow_mut().set_heap_index(Some(heap_index));
-        } else {
-            // Swap and recursively heapify
-            self.data.swap(heap_index, smallest);
-            self.data[heap_index].borrow_mut().set_heap_index(Some(heap_index));
-            self.heapify_at(smallest);
-        }
-
-        // Now get the final, updated index of the item we sent in
-        for element in self.data.iter() {
-            if element.borrow_mut().index() == index {
-                if element.borrow_mut().heap_index().is_none() {
-                    // If this happens, need to investigate how. This shouldn't happen.
-                    panic!("Item with index {} has no heap index", index);
-                }
-                return element.borrow_mut().heap_index().unwrap().clone();
-            }
-        }
-        heap_index
     }
 
     /// Called when an item's key has decreased
@@ -196,18 +155,16 @@ where
     }
 
     /// Called when an item's key has increased, returns the new heap_index.
-    pub fn increased_key(&mut self, item_heap_index: usize, item_index: Option<usize>) -> usize {
-        if item_heap_index < self.size && item_index.is_some() { // TODO: Maybe this is a problem?
-            return self.heapify_at_with_new_index(item_heap_index, item_index.unwrap()); // Safe because we checked that item_index is Some
-        }
+    pub fn increased_key(&mut self, item_heap_index: usize) {
+        if item_heap_index < self.size {
         self.heapify_at(item_heap_index);
-        item_heap_index
+        }
     }
 
     /// Called when an item's key has changed (either increased or decreased)
     pub fn changed_key(&mut self, item_index: usize) {
         self.decreased_key(item_index);
-        self.increased_key(item_index, None);
+        self.increased_key(item_index);
     }
 
     /// Inserts a new item into the heap
@@ -231,41 +188,6 @@ where
     }
     
     /// Removes an item from the heap by its index
-    // pub unsafe fn delete_with_pop(&mut self, item_heap_index: usize) -> Option<Rc<RefCell<T>>> {
-    //     if item_heap_index >= self.size {
-    //         return None;
-    //     }
-    // 
-    //     if item_heap_index == self.size - 1 {
-    //         // Remove last item
-    //         self.size -= 1;
-    //         if item_heap_index < self.data.len() {
-    //             Some(std::mem::replace(&mut self.data[item_heap_index], unsafe { std::mem::zeroed() }))
-    //         } else {
-    //             self.data.pop()
-    //         }
-    //     } else {
-    //         // Move last item to deleted position
-    //         let last_index = self.size - 1;
-    //         self.data.swap(item_heap_index, last_index);
-    //         self.data[item_heap_index].borrow_mut().set_heap_index(Some(item_heap_index));
-    //         self.size -= 1;
-    //         let item_index = self.data[item_heap_index].borrow_mut().index();
-    // 
-    //         // Restore heap property
-    //         let new_heap_index = self.increased_key(item_heap_index, Some(item_index));
-    //         self.decreased_key(new_heap_index);
-    // 
-    //         // Return the deleted item (now at the end)
-    //         if last_index < self.data.len() {
-    //             Some(std::mem::replace(&mut self.data[last_index], unsafe { std::mem::zeroed() }))
-    //         } else {
-    //             self.data.pop()
-    //         }
-    //     }
-    // }
-    
-    /// Removes an item from the heap by its index
     pub fn delete(&mut self, item_heap_index: usize) {
         if item_heap_index >= self.size {
             return;
@@ -282,8 +204,8 @@ where
             let item_index = self.data[item_heap_index].borrow_mut().index();
 
             // Restore heap property
-            let new_heap_index = self.increased_key(item_heap_index, Some(item_index));
-            self.decreased_key(new_heap_index);
+            self.increased_key(item_heap_index);
+            self.decreased_key(item_index);
         }
     }
 

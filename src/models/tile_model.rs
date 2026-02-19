@@ -1,5 +1,4 @@
-use std::collections::HashSet;
-use crate::context::{Context, TileModelMappingId, TopologyId};
+use crate::context::{Context, TopologyId};
 use crate::models::tile_model_mapping::TileModelMapping;
 use crate::topology::topology::Topology;
 

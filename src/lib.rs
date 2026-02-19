@@ -1,18 +1,18 @@
-mod context;
-mod tile;
+pub mod context;
+pub mod tile;
 
-#[cfg(test)]
-mod full_test;
-mod topology;
-mod models;
-mod tile_propagator;
-mod resolution;
-mod wfc;
-mod point;
-mod tile_propagator_tile_set;
-mod trackers;
-mod tile_propagator_options;
-mod constraints;
+// #[cfg(test)]
+// mod full_test;
+pub mod topology;
+pub mod models;
+pub mod tile_propagator;
+pub mod resolution;
+pub mod wfc;
+pub mod point;
+pub mod tile_propagator_tile_set;
+pub mod trackers;
+pub mod tile_propagator_options;
+pub mod constraints;
 pub mod shared_mut_heap;
 pub mod heap;
 
