@@ -11,3 +11,7 @@ The roadmap is going to be like this:
 - [ ] Completely refactor the code to adhere to Rust's idioms. This means studying a lot of respected Rust libraries and seeing how they do things.
 - [ ] TBD
 
+## Testing
+Unit test coverage at this point is not anywhere close to where it needs to be. At the moment, I am only unit testing critical pieces that are either not directly tested by integration tests, or to increase visibility on certain parts.
+
+In general, though, I will not do comprehensive unit test coverage until I am at the place where I can refactor this code into more idiomatic Rust.

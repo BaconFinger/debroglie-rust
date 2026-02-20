@@ -94,7 +94,7 @@ where
         if self.size == 0 {
             return;
         }
-        
+
         let start = Self::parent(self.size); // match C#, was let start = Self::parent(self.size - 1);
         for i in (0..=start).rev() {
             self.heapify_at(i);
@@ -193,7 +193,7 @@ where
             return;
         }
 
-        if item_heap_index == self.size - 1 {
+        if item_heap_index == self.size - 1 { // i.e. we're removing the last element
             self.size -= 1;
         } else {
             // Move last item to deleted position
@@ -280,62 +280,64 @@ mod tests {
         assert!(heap.is_empty());
         assert!(heap.peek().is_none());
     }
-    //
-    // #[test]
-    // fn test_single_item() {
-    //     let mut heap = Heap::new();
-    //     let node = TestNode::new(5, "test".to_string());
-    //     heap.insert(node);
-    //
-    //     assert_eq!(heap.count(), 1);
-    //     assert!(!heap.is_empty());
-    //     assert_eq!(heap.peek().unwrap().key, 5);
-    // }
 
-    // #[test]
-    // fn test_min_heap_property() {
-    //     let mut heap = Heap::new();
-    //     heap.insert(TestNode::new(10, "ten".to_string()));
-    //     heap.insert(TestNode::new(5, "five".to_string()));
-    //     heap.insert(TestNode::new(15, "fifteen".to_string()));
-    //     heap.insert(TestNode::new(3, "three".to_string()));
-    //     heap.insert(TestNode::new(8, "eight".to_string()));
-    //
-    //     assert_eq!(heap.peek().unwrap().key, 3);
-    //
-    //     let min = heap.extract_min().unwrap();
-    //     assert_eq!(min.key, 3);
-    //     assert_eq!(heap.peek().unwrap().key, 5);
-    // }
+    #[test]
+    fn test_single_item() {
+        let mut heap = SharedMutHeap::new();
+        let node = Rc::new(RefCell::new(TestNode::new(5, "test".to_string())));
+        heap.insert(node);
 
-    // #[test]
-    // fn test_from_vec() {
-    //     let nodes = vec![
-    //         TestNode::new(10, "ten".to_string()),
-    //         TestNode::new(5, "five".to_string()),
-    //         TestNode::new(15, "fifteen".to_string()),
-    //         TestNode::new(3, "three".to_string()),
-    //     ];
-    //
-    //     let heap = Heap::from_vec(nodes);
-    //     assert_eq!(heap.count(), 4);
-    //     assert_eq!(heap.peek().unwrap().key, 3);
-    // }
+        assert_eq!(heap.count(), 1);
+        assert!(!heap.is_empty());
+        assert_eq!(heap.peek().unwrap().borrow_mut().key, 5);
+    }
 
-    // #[test]
-    // fn test_extract_all() {
-    //     let mut heap = Heap::new();
-    //     let values = vec![10, 5, 15, 3, 8, 12, 1];
-    //
-    //     for val in values {
-    //         heap.insert(TestNode::new(val, format!("val_{}", val)));
-    //     }
-    //
-    //     let mut extracted = Vec::new();
-    //     while let Some(node) = heap.extract_min() {
-    //         extracted.push(node.key);
-    //     }
-    //
-    //     assert_eq!(extracted, vec![1, 3, 5, 8, 10, 12, 15]);
-    // }
+    /// When an element is deleted, the size of the heap is reduced by one, and the deleted element
+    /// is moved to the end of the heap.
+    #[test]
+    fn test_delete() {
+        // Arrange
+        let nodes = vec![
+            Rc::new(RefCell::new(TestNode::new(1, "test".to_string()))),
+            Rc::new(RefCell::new(TestNode::new(2, "test".to_string()))),
+            Rc::new(RefCell::new(TestNode::new(3, "test".to_string()))),
+        ];
+        let mut heap = SharedMutHeap::from_vec(nodes);
+        let before_delete = heap.count();
+
+        // Act
+        heap.delete(1);
+
+        // Assert
+        assert_eq!(3, before_delete);
+        assert_eq!(2, heap.count());
+        assert_eq!(1, heap.data[0].borrow_mut().key);
+        assert_eq!(3, heap.data[1].borrow_mut().key);
+        assert_eq!(2, heap.data[2].borrow_mut().key);
+    }
+
+    #[test]
+    fn test_delete_multiple_same_index() {
+        // Arrange
+        let nodes = vec![
+            Rc::new(RefCell::new(TestNode::new(2, "test".to_string()))),
+            Rc::new(RefCell::new(TestNode::new(5, "test".to_string()))),
+            Rc::new(RefCell::new(TestNode::new(3, "test".to_string()))),
+            Rc::new(RefCell::new(TestNode::new(4, "test".to_string()))),
+            Rc::new(RefCell::new(TestNode::new(1, "test".to_string()))),
+        ];
+        let mut heap = SharedMutHeap::from_vec(nodes);
+        let before_delete = heap.count();
+
+        // Act
+        heap.delete(1);
+        heap.delete(1);
+
+        // Assert
+        assert_eq!(5, before_delete);
+        assert_eq!(3, heap.count());
+        assert_eq!(1, heap.data[0].borrow_mut().key);
+        assert_eq!(5, heap.data[1].borrow_mut().key);
+        assert_eq!(3, heap.data[2].borrow_mut().key);
+    }
 }

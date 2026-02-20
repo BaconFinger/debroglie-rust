@@ -35,7 +35,7 @@ pub enum IndexPickerType
     /// Override frequencies on a per-index
     ArrayPriorityMinEntropy,
     /// Only pick indices that must deviate from a known clean value.
-    /// This lets you regenerate a unknown subset of a much larger map,
+    /// This lets you regenerate an unknown subset of a much larger map,
     /// providing tiles are sufficiently stable.
     /// Experimental.
     Dirty,
@@ -44,7 +44,7 @@ pub enum IndexPickerType
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TilePickerType
 {
-    /// Use the most appropriate picker, usuaully Weighted
+    /// Use the most appropriate picker, usually Weighted
     Default,
     /// Pick the first available tile.
     Ordered,
@@ -118,7 +118,6 @@ impl<V: Clone + 'static, T: Topology + Clone> TilePropagatorOptions<V, T> {
             backtrack: if backtrack { BacktrackType::Backtrack } else { BacktrackType::None },
             max_backtrack_depth: 0,
             constraints: constraints.unwrap_or(Vec::new()),
-            // TODO: make customizable and seedable
             random_double: random_double.unwrap_or(Rc::new(|| {
                 
                 use std::hash::{Hash, Hasher};
@@ -141,6 +140,34 @@ impl<V: Clone + 'static, T: Topology + Clone> TilePropagatorOptions<V, T> {
             clean_tiles: Arc::new(Mutex::new(Box::new(DummyTopoArray::new()))),
             index_order: Vec::new(),
             memoize_indices: false,
+        }
+    }
+}
+
+mod tests {
+    use crate::tile_propagator_options::TilePropagatorOptions;
+    use crate::topology::grid_topology::GridTopology;
+
+    #[test]
+    fn includes_default_random_func() {
+        // Arrange
+        let max_tries = 3;
+        let mut last_random_double = 0.0;
+
+        // Act
+        let options: TilePropagatorOptions<i32, GridTopology> = TilePropagatorOptions::new(true, None, None);
+
+        // Assert
+        for i in 0..max_tries {
+            if i >= max_tries - 1 {
+                assert_eq!(false, true, "random func output has been the same for the last 3 tries.");
+            }
+            let output = options.random_double.clone()();
+            if output != last_random_double {
+                assert_eq!(true, true);
+                break;
+            }
+            last_random_double = output;
         }
     }
 }

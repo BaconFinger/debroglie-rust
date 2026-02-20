@@ -392,62 +392,29 @@ mod tests {
         assert!(heap.is_empty());
         assert!(heap.peek().is_none());
     }
-    //
-    // #[test]
-    // fn test_single_item() {
-    //     let mut heap = Heap::new();
-    //     let node = TestNode::new(5, "test".to_string());
-    //     heap.insert(node);
-    //
-    //     assert_eq!(heap.count(), 1);
-    //     assert!(!heap.is_empty());
-    //     assert_eq!(heap.peek().unwrap().key, 5);
-    // }
 
-    // #[test]
-    // fn test_min_heap_property() {
-    //     let mut heap = Heap::new();
-    //     heap.insert(TestNode::new(10, "ten".to_string()));
-    //     heap.insert(TestNode::new(5, "five".to_string()));
-    //     heap.insert(TestNode::new(15, "fifteen".to_string()));
-    //     heap.insert(TestNode::new(3, "three".to_string()));
-    //     heap.insert(TestNode::new(8, "eight".to_string()));
-    //
-    //     assert_eq!(heap.peek().unwrap().key, 3);
-    //
-    //     let min = heap.extract_min().unwrap();
-    //     assert_eq!(min.key, 3);
-    //     assert_eq!(heap.peek().unwrap().key, 5);
-    // }
+    #[test]
+    fn test_single_item() {
+        let mut heap = Heap::new();
+        let node = TestNode::new(5, "test".to_string());
+        heap.insert(node);
 
-    // #[test]
-    // fn test_from_vec() {
-    //     let nodes = vec![
-    //         TestNode::new(10, "ten".to_string()),
-    //         TestNode::new(5, "five".to_string()),
-    //         TestNode::new(15, "fifteen".to_string()),
-    //         TestNode::new(3, "three".to_string()),
-    //     ];
-    //
-    //     let heap = Heap::from_vec(nodes);
-    //     assert_eq!(heap.count(), 4);
-    //     assert_eq!(heap.peek().unwrap().key, 3);
-    // }
+        assert_eq!(heap.count(), 1);
+        assert!(!heap.is_empty());
+        assert_eq!(heap.peek().unwrap().key, 5);
+    }
 
-    // #[test]
-    // fn test_extract_all() {
-    //     let mut heap = Heap::new();
-    //     let values = vec![10, 5, 15, 3, 8, 12, 1];
-    //
-    //     for val in values {
-    //         heap.insert(TestNode::new(val, format!("val_{}", val)));
-    //     }
-    //
-    //     let mut extracted = Vec::new();
-    //     while let Some(node) = heap.extract_min() {
-    //         extracted.push(node.key);
-    //     }
-    //
-    //     assert_eq!(extracted, vec![1, 3, 5, 8, 10, 12, 15]);
-    // }
+    #[test]
+    fn test_from_vec() {
+        let nodes = vec![
+            TestNode::new(10, "ten".to_string()),
+            TestNode::new(5, "five".to_string()),
+            TestNode::new(15, "fifteen".to_string()),
+            TestNode::new(3, "three".to_string()),
+        ];
+
+        let heap = Heap::from_vec(nodes);
+        assert_eq!(heap.count(), 4);
+        assert_eq!(heap.peek().unwrap().key, 3);
+    }
 }

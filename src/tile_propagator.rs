@@ -24,7 +24,7 @@ use crate::wfc::wave_propagator::{ModelConstraintAlgorithm, WavePropagator, Wave
 /// It takes a TileModel and an output Topology and generates
 /// an output array using those parameters.
 ///
-/// Implementation wise, this wraps a WavePropagator to do the majority of the work.
+/// Implementation-wise, this wraps a WavePropagator to do the majority of the work.
 /// The only thing this class handles is conversion of tile objects into sets of patterns
 /// and coordinate conversion.
 pub struct TilePropagator<T>
@@ -35,10 +35,6 @@ where T: Topology + Clone + 'static
     tile_model: ModelId,
     tile_model_mapping: TileModelMappingId,
     self_ref: Option<TilePropagatorId>,
-    // wave_propagator: Option<Arc<Mutex<crate::procedural_generation::debroglie_scuffed::wfc::wave_propagator::WavePropagator>>>,
-    // tile_model: Arc<Mutex<Box<dyn crate::procedural_generation::debroglie_scuffed::models::tile_model::TileModel<T>>>>,
-    // tile_model_mapping: Arc<Mutex<crate::procedural_generation::debroglie_scuffed::models::tile_model_mapping::TileModelMapping<T>>>,
-    // self_ref: Option<Arc<Mutex<Self>>>,
 
     phantom_data: PhantomData<T>
 }
@@ -46,7 +42,10 @@ where T: Topology + Clone + 'static
 impl<T> TilePropagator<T>
 where T: Topology + Clone + 'static
 {
-    pub fn new(
+    /// Creates a new TilePropagator with default options, and returns a reference to it under an RcRefCell.
+    /// TilePropagator must be under an RcRefCell, as its numerous dependencies require a reference
+    /// to itself.
+    pub fn init(
         ctx: &Context<T>,
         tile_model: ModelId,
         topology: TopologyId,
@@ -57,7 +56,6 @@ where T: Topology + Clone + 'static
             backtrack: if backtrack { BacktrackType::Backtrack } else { BacktrackType::None },
             max_backtrack_depth: 0,
             constraints: constraints.unwrap_or(Vec::new()),
-            // TODO: make customizable and seedable
             random_double: Rc::new(|| {
                 use std::collections::hash_map::DefaultHasher;
                 use std::hash::{Hash, Hasher};
@@ -86,6 +84,9 @@ where T: Topology + Clone + 'static
         Ok(ctx.tile_propagators().get(self_id).ok_or("unable to get self")?.clone())
     }
 
+    /// Creates a new TilePropagator with the given options, and returns a reference to it under an RcRefCell.
+    /// TilePropagator must be under an RcRefCell, as its numerous dependencies require a reference
+    /// to itself.
     pub fn with_options(
         ctx: &Context<T>,
         tile_model: ModelId,
@@ -166,7 +167,7 @@ where T: Topology + Clone + 'static
             .iter()
             .find(|c| {
                 // Check if the constraint is a ConnectedConstraint
-                // This is a simplified check - you may need to implement proper type checking
+                // This is a simplified check - will need to implement proper type checking
                 false // For now, assume no connected constraints
             });
 
@@ -179,8 +180,6 @@ where T: Topology + Clone + 'static
             }
         }
 
-        // let mut index_picker: Option<Rc<RefCell<dyn IndexPicker<T>>>> = None;
-        // let mut pattern_picker: Option<Rc<RefCell<dyn PatternPicker<T>>>> = None;
         let mut index_picker: Option<TrackerId> = None;
         let mut pattern_picker: Option<TrackerId> = None;
 
@@ -280,7 +279,7 @@ where T: Topology + Clone + 'static
 
         if connected_pick_heuristic {
             // Apply connected constraint heuristic to index picker
-            // This is simplified - you'll need to implement the actual heuristic wrapper
+            // This is simplified - will need to implement the actual heuristic wrapper
         }
 
         if options.memoize_indices {
@@ -452,14 +451,6 @@ impl<T: Topology + Clone, R: IndexPicker<T>> IndexPicker<T> for AsIndexPicker<T,
     fn get_random_index(&mut self, ctx: &Context<T>, random_double: Rc<dyn Fn() -> f64>) -> Option<i32> {
         self.0.borrow_mut().get_random_index(ctx, random_double)
     }
-
-    // fn set_self_ref(&mut self, self_ref: TrackerId) {
-    //     todo!()
-    // }
-    //
-    // fn add_self(self, ctx: &Context<T>) -> TrackerId {
-    //     todo!()
-    // }
 }
 pub fn to_index_picker<T: Topology + Clone + 'static, R: IndexPicker<T> +'static>(index_picker: Rc<RefCell<R>>) -> Rc<RefCell<dyn IndexPicker<T>>> {
     Rc::new(RefCell::new(AsIndexPicker(index_picker.clone(), PhantomData)))

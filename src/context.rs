@@ -36,7 +36,9 @@ new_key_type! {
 // The Rc to ContextStorage is normally read-only, but because the data in the ContextStorage
 // is in a RefCell, it can be mutated without having to explicitly use "mut" everywhere.
 
-/// Context stores and owns **all** the data.
+/// Context stores and owns **all** data which is shared between classes.
+/// Some classes with tighter coupling ([`HeapEntropyTracker`] and [`SharedMutHeap`]) might
+/// share data in a more traditional, Rc<RefCell<>> way.
 /// All classes should store the SlotMap handle instead of references to their dependencies, and
 /// use this Context object to get an RcRefCell reference to the actual dependency.
 /// The original library was written in C#, so this is, perhaps, a ham-fisted attempt to mimic
