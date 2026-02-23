@@ -176,7 +176,7 @@ pub fn speed_test() {
     println!("Time elapsed: {:?}", end - start);
 }
 
-fn output_to_visuals(ctx: &Context<GridTopology>, output_result: Box<dyn TopoArray<TileVisual, GridTopology>>) -> Vec<Vec<TileVisual>> {
+pub(crate) fn output_to_visuals(ctx: &Context<GridTopology>, output_result: Box<dyn TopoArray<TileVisual, GridTopology>>) -> Vec<Vec<TileVisual>> {
     let mut output_visuals: Vec<Vec<TileVisual>> = vec![Vec::new(); 0];
     for y in 0..height {
         if output_visuals.len() < y + 1 {
@@ -192,7 +192,7 @@ fn output_to_visuals(ctx: &Context<GridTopology>, output_result: Box<dyn TopoArr
     output_visuals
 }
 
-fn debug_print_output(output_visuals: &Vec<Vec<TileVisual>>) {
+pub(crate) fn debug_print_output(output_visuals: &Vec<Vec<TileVisual>>) {
     for y in output_visuals.iter() {
         for x in y.iter() {
             print!("{}", x);
