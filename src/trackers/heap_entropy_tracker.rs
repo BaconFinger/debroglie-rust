@@ -262,7 +262,8 @@ impl<T: Topology + Clone> IndexPicker<T> for HeapEntropyTracker<T> {
                     heap.delete(ev.borrow_mut().heap_index.unwrap()); // TODO: Fix unwrap
                     ev.borrow_mut().set_heap_index(None);
                 } else {
-                    heap.changed_key(ev.borrow_mut().heap_index.unwrap()); // TODO: Fix unwrap
+                    let to_change = ev.borrow_mut().heap_index.unwrap().clone();
+                    heap.changed_key(to_change); // TODO: Fix unwrap
                 }
             }
 
@@ -346,17 +347,17 @@ impl<T: Topology + Clone> SuperTracker<T> for HeapEntropyTracker<T> {
 }
 
 #[derive(Debug, Clone)]
-struct EntropyValues {
-    plogp_sum: f64,     // The sum of p'(pattern) * log(p'(pattern)).
-    sum: f64,           // The sum of p'(pattern).
-    entropy: f64,       // The entropy of the cell.
-    index: usize,
-    heap_index: Option<usize>,
-    tiebreaker: f64,
+pub(crate) struct EntropyValues {
+    pub(crate) plogp_sum: f64,     // The sum of p'(pattern) * log(p'(pattern)).
+    pub(crate) sum: f64,           // The sum of p'(pattern).
+    pub(crate) entropy: f64,       // The entropy of the cell.
+    pub(crate) index: usize,
+    pub(crate) heap_index: Option<usize>,
+    pub(crate) tiebreaker: f64,
 }
 
 impl EntropyValues {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             plogp_sum: 0.0,
             sum: 0.0,
@@ -367,7 +368,7 @@ impl EntropyValues {
         }
     }
 
-    fn from_other(other: &EntropyValues) -> Self {
+    pub(crate) fn from_other(other: &EntropyValues) -> Self {
         Self {
             plogp_sum: other.plogp_sum,
             sum: other.sum,
@@ -378,7 +379,7 @@ impl EntropyValues {
         }
     }
 
-    fn update(&mut self, other: &EntropyValues) {
+    pub(crate) fn update(&mut self, other: &EntropyValues) {
         self.plogp_sum = other.plogp_sum;
         self.sum = other.sum;
         self.entropy = other.entropy;
@@ -387,16 +388,16 @@ impl EntropyValues {
         self.tiebreaker = other.tiebreaker;
     }
 
-    fn recompute_entropy(&mut self) {
+    pub(crate) fn recompute_entropy(&mut self) {
         self.entropy = self.sum.ln() - self.plogp_sum / self.sum;
     }
 
-    fn decrement(&mut self, p: f64, plogp: f64) {
+    pub(crate) fn decrement(&mut self, p: f64, plogp: f64) {
         self.plogp_sum -= plogp;
         self.sum -= p;
     }
 
-    fn increment(&mut self, p: f64, plogp: f64) {
+    pub(crate)fn increment(&mut self, p: f64, plogp: f64) {
         self.plogp_sum += plogp;
         self.sum += p;
     }
