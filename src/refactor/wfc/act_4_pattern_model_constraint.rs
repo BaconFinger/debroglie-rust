@@ -1,12 +1,11 @@
 use std::cell::{RefCell};
 use std::rc::Rc;
-use crate::context::{Context, TopologyId, WavePropagatorId};
-use crate::resolution::Resolution;
-use crate::topology::direction::Direction;
-use crate::topology::topology::Topology;
-use crate::wfc::pattern_model::PatternModel;
-use crate::wfc::pattern_model_constraint::PatternModelConstraint;
-use crate::wfc::wave_propagator::{IndexPatternItem, WavePropagator};
+use crate::refactor::resolution::Resolution;
+use crate::refactor::topology::direction::Direction;
+use crate::refactor::topology::topology::Topology;
+use crate::refactor::wfc::pattern_model::PatternModel;
+use crate::refactor::wfc::pattern_model_constraint::PatternModelConstraint;
+use crate::refactor::wfc::wave_propagator::{IndexPatternItem, WavePropagator};
 
 /// Implements pattern adjacency propagation using the arc consistency 4 algorithm.
 ///
@@ -40,7 +39,7 @@ pub struct Ac4PatternModelConstraint<T: Topology + Clone> {
 }
 
 impl<T: Topology + Clone> Ac4PatternModelConstraint<T> {
-    pub fn new(ctx: &Context<T>, propagator_id: WavePropagatorId, model: &PatternModel) -> Self {
+    pub fn new(wave_propagator: &WavePropagator<T>, model: &PatternModel) -> Self {
         let propagator_array = model.propagator().clone();
         let pattern_count = model.pattern_count();
 

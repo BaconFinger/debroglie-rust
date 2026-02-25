@@ -324,7 +324,7 @@ where T: Topology + Clone + 'static
     pub fn get_value_with_defaults(&self, index: usize) -> Option<TileVisual> {
         let (pattern_index, o) = self.tile_model_mapping
             .get_tile_coord_to_pattern_coord_by_index(&self.topology, index);
-        let pattern = self.wave_propagator.get_decided_pattern(&self.topology, pattern_index)?;
+        let pattern = self.wave_propagator.get_decided_pattern(pattern_index)?;
 
         match pattern as i8 {
             -1 => None, // Resolution::Undecided

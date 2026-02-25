@@ -47,7 +47,7 @@ pub enum ModelConstraintAlgorithm {
 
 pub struct WavePropagator<T: Topology + Clone> {
     // Main data tracking what we've decided so far
-    wave: Option<WaveId>,
+    wave: Option<Wave>,
 
     pattern_model_constraint: Box<dyn PatternModelConstraint<T>>,
 
@@ -67,7 +67,7 @@ pub struct WavePropagator<T: Topology + Clone> {
     index_count: usize,
     backtrack: bool,
     max_backtrack_depth: i32,
-    constraints: Vec<WaveConstraintId>, // was constraints: Vec<Box<dyn WaveConstraint>>,
+    constraints: Vec<WaveConstraint>,
     random_double: Rc<dyn Fn() -> f64>,
 
     // Deferred constraints
@@ -78,27 +78,25 @@ pub struct WavePropagator<T: Topology + Clone> {
     contradiction_reason: Option<String>,
     contradiction_source: Option<String>,
 
-    pub topology: TopologyId, // was pub topology: Arc<Mutex<Box<dyn Topology>>>,
+    // pub topology: TopologyId, // was pub topology: Arc<Mutex<Box<dyn Topology>>>,
     directions_count: usize,
 
-    trackers: Vec<TrackerId>, // was trackers: Vec<Arc<Mutex<dyn Tracker>>>,
-    choice_observers: Vec<ChoiceObserverId>, // was Vec<Arc<Mutex<dyn ChoiceObserver>>>,
+    trackers: Vec<Box<dyn SuperTracker<T>>>,
+    choice_observers: Vec<Box<dyn ChoiceObserver>>,
 
-    index_picker: TrackerId, // was Arc<Mutex<Box<dyn IndexPicker>>>,
-    pattern_picker: TrackerId, // was Arc<Mutex<Box<dyn PatternPicker>>>,
-    backtrack_policy: Option<BacktrackPolicyId>, // was Option<Box<dyn BacktrackPolicy>>,
-
-    self_ref: Option<WavePropagatorId>
+    index_picker: Box<dyn IndexPicker<T>>,
+    pattern_picker: Box<dyn PatternPicker<T>>,
+    backtrack_policy: Option<Box<dyn BacktrackPolicy<T>>>,
 }
 
 // Options struct for WavePropagator
-pub struct WavePropagatorOptions {
-    pub backtrack_policy: Option<BacktrackPolicyId>, // was Option<Box<dyn BacktrackPolicy>>,
+pub struct WavePropagatorOptions<T: Topology + Clone> {
+    pub backtrack_policy: Option<Box<dyn BacktrackPolicy<T>>>,
     pub max_backtrack_depth: i32,
-    pub constraints: Option<Vec<WaveConstraintId>>, // was Option<Vec<Box<dyn WaveConstraint>>>,
+    pub constraints: Option<Vec<WaveConstraint>>,
     pub random_double: Option<Rc<dyn Fn() -> f64>>,
-    pub index_picker: Option<TrackerId>, // was Option<Arc<Mutex<Box<dyn IndexPicker>>>>,
-    pub pattern_picker: Option<TrackerId>, // was Option<Arc<Mutex<Box<dyn PatternPicker>>>>,
+    pub index_picker: Option<Box<dyn IndexPicker<T>>>,
+    pub pattern_picker: Option<Box<dyn PatternPicker<T>>>,
     pub clear: bool,
     pub model_constraint_algorithm: ModelConstraintAlgorithm,
 }
@@ -106,17 +104,15 @@ pub struct WavePropagatorOptions {
 impl<T: Topology + Clone> WavePropagator<T> {
     pub fn new(
         model: PatternModel,
-        topology: TopologyId,
-        options: WavePropagatorOptions,
-    ) -> Result<WavePropagatorId, String> {
-        let topology_ref = get_topology(ctx, topology.clone()).ok_or("unable to get topology")?;
+        topology: &T,
+        options: WavePropagatorOptions<T>,
+    ) -> Result<Self, String> {
         let pattern_count = model.pattern_count();
         let frequencies = model.frequencies().clone();
-        let index_count = topology_ref.borrow().index_count();
+        let index_count = topology.index_count();
         let backtrack = options.backtrack_policy.is_some();
-        let directions_count = topology_ref.borrow().directions_count();
+        let directions_count = topology.directions_count();
 
-        // TODO: make more configurable and ideally seedable
         let random_double = options.random_double.unwrap_or(Rc::new(|| {
             use std::collections::hash_map::DefaultHasher;
             use std::hash::{Hash, Hasher};
@@ -129,15 +125,13 @@ impl<T: Topology + Clone> WavePropagator<T> {
         }));
 
         let index_picker = options.index_picker.unwrap_or_else(|| {
-            let default_tracker = EntropyTracker::new();
-            ctx.index_pickers().add(Rc::new(RefCell::new(default_tracker)))
+            Box::new(EntropyTracker::new())
         });
         let pattern_picker = options.pattern_picker.unwrap_or_else(|| {
-            let default_picker = WeightedRandomPatternPicker::new();
-            ctx.pattern_pickers().add(Rc::new(RefCell::new(default_picker)))
+            Box::new(WeightedRandomPatternPicker::new())
         });
 
-        let wave_propagator = Self {
+        let mut wave_propagator = Self {
             wave: None,
             pattern_model_constraint: Box::new(OneStepPatternModelConstraint),
             pattern_count,
@@ -157,51 +151,43 @@ impl<T: Topology + Clone> WavePropagator<T> {
             status: Resolution::Undecided,
             contradiction_reason: None,
             contradiction_source: None,
-            topology,
             directions_count,
             trackers: Vec::new(),
             choice_observers: Vec::new(),
             index_picker,
             pattern_picker,
             backtrack_policy: options.backtrack_policy,
-            self_ref: None
         };
 
-        let id = ctx.wave_propagators().add(wave_propagator);
-        let wave_propagator = get_wave_propagator(ctx, id).unwrap(); // Safe since we just added it
+
         let pattern_model_constraint: Box<dyn PatternModelConstraint<T>> = match options.model_constraint_algorithm {
             ModelConstraintAlgorithm::OneStep => Box::new(OneStepPatternModelConstraint),
-            ModelConstraintAlgorithm::Default | ModelConstraintAlgorithm::Ac4 => Box::new(Ac4PatternModelConstraint::new(ctx, id, &model)),
+            ModelConstraintAlgorithm::Default | ModelConstraintAlgorithm::Ac4 => Box::new(Ac4PatternModelConstraint::new(&wave_propagator, &model)),
             ModelConstraintAlgorithm::Ac3 => Box::new(Ac3PatternModelConstraint),
         };
-        let mut wave_propagator_ref = wave_propagator.borrow_mut();
-        wave_propagator_ref.set_self_ref(id);
-        wave_propagator_ref.pattern_model_constraint = pattern_model_constraint;
+
+        wave_propagator.pattern_model_constraint = pattern_model_constraint;
         if options.clear {
-            wave_propagator_ref.clear(ctx)?;
+            wave_propagator.clear()?;
         }
 
-        Ok(id)
+        Ok(wave_propagator)
     }
 
     /// Repeatedly step until the status is Decided or Contradiction
     pub fn run(&mut self) -> Result<Resolution, String> {
         let now = Instant::now();
         loop {
-            let status = self.step(ctx)?;
+            let status = self.step()?;
             if status != Resolution::Undecided {
                 return Ok(status);
             }
         }
     }
 
-    pub fn clear(&mut self, ctx: &Context<T>) -> Result<Resolution, String> {
-        if self.self_ref.is_none() {
-            return Err("WavePropagator::clear called without self_ref set! It must be added to the Context first!".to_string());
-        }
-
+    pub fn clear(&mut self) -> Result<Resolution, String> {
         let wave = Wave::new(self.pattern_count, self.index_count);
-        self.wave = Some(ctx.wave().add(wave));
+        self.wave = Some(wave);
 
         if self.backtrack {
             self.backtrack_items = Some(VecDeque::new());
@@ -219,32 +205,28 @@ impl<T: Topology + Clone> WavePropagator<T> {
         self.choice_observers.clear();
 
         // Initialize pickers
-        let index_picker_rc = self.get_index_picker(ctx).ok_or("unable to get index picker")?;
-        let mut index_picker = index_picker_rc.borrow_mut();
-        let picker_ref = &mut *index_picker;
-        IndexPicker::init(picker_ref, ctx, self)?;
+        let picker_ref = &mut *self.index_picker;
+        IndexPicker::init(picker_ref, self)?;
 
-        let pattern_picker_rc = self.get_pattern_picker(ctx).ok_or("unable to get index picker")?;
-        let mut pattern_picker = pattern_picker_rc.borrow_mut();
-        let picker_ref = &mut *pattern_picker;
+        let picker_ref = &mut *self.pattern_picker;
         PatternPicker::init(picker_ref, self)?;
 
         if let Some(ref mut policy) = self.backtrack_policy {
-            self.get_backtrack_policy(ctx).ok_or("unable to get backtrack policy")?.borrow_mut().init(ctx, self)?;
+            self.backtrack_policy.init(self)?;
         }
 
-        self.pattern_model_constraint.clear(ctx);
+        self.pattern_model_constraint.clear();
 
         if self.status == Resolution::Contradiction {
             return Ok(self.status);
         }
 
-        self.init_constraints(ctx).ok();
+        self.init_constraints().ok();
 
         Ok(self.status)
     }
 
-    fn init_constraints(&mut self, ctx: &Context<T>) -> Result<(), String> {
+    fn init_constraints(&mut self) -> Result<(), String> {
         // Note: constraints would need to be handled differently in Rust
         // This is a simplified version
         let constraints_len = self.constraints.len();
@@ -257,7 +239,7 @@ impl<T: Topology + Clone> WavePropagator<T> {
                 }
             }
 
-            self.pattern_model_constraint.propagate(ctx);
+            self.pattern_model_constraint.propagate();
 
             {
                 if self.status != Resolution::Undecided {
@@ -268,16 +250,16 @@ impl<T: Topology + Clone> WavePropagator<T> {
         Ok(())
     }
 
-    pub fn step(&mut self, ctx: &Context<T>) -> Result<Resolution, String> {
+    pub fn step(&mut self) -> Result<Resolution, String> {
         // println!("wave_propagator.step");
         // Check if we need to step constraints
         if self.deferred_constraints_step {
-            self.step_constraints(ctx);
+            self.step_constraints();
         }
 
         // If we're already in a final state, skip making an observation
         if self.status != Resolution::Undecided {
-            self.try_backtrack_until_no_contradiction(ctx)?;
+            self.try_backtrack_until_no_contradiction()?;
             return Ok(self.status);
         }
 
@@ -285,10 +267,7 @@ impl<T: Topology + Clone> WavePropagator<T> {
             // Pick an index to use
             let index = {
                 let random_fn = self.random_double.clone();
-                self.get_index_picker(ctx)
-                    .ok_or("unable to get index picker")
-                    ?.borrow_mut()
-                    .get_random_index(ctx, random_fn)
+                self.index_picker.get_random_index(random_fn)
                     .ok_or("unable to get random index from pattern picker")?
             };
 
@@ -305,10 +284,7 @@ impl<T: Topology + Clone> WavePropagator<T> {
                 // Pick a pattern to select at that index
                 pattern = {
                     let random_fn = self.random_double.clone();
-                    self.get_pattern_picker(ctx)
-                        .ok_or("unable to get pattern picker")
-                        ?.borrow_mut()
-                        .get_random_possible_pattern_at(ctx, index as usize, random_fn)
+                    self.pattern_picker.get_random_possible_pattern_at(index as usize, random_fn)
                 };
             }
 
@@ -316,34 +292,27 @@ impl<T: Topology + Clone> WavePropagator<T> {
         };
 
         if let Some(pattern) = pattern {
-            // println!("pattern is {}", pattern);
-            self.record_backtrack(ctx, index, pattern as i32)?;
+            self.record_backtrack(index, pattern as i32)?;
 
             // Use the pick
-            if self.internal_select(ctx, index as usize, pattern).ok_or("unable to internal_select")? {
-                // println!("wave_propagator:548");
+            if self.internal_select(index as usize, pattern).ok_or("unable to internal_select")? {
                 self.status = Resolution::Contradiction;
             }
         }
 
         // Re-evaluate status
         if self.status == Resolution::Undecided {
-            self.pattern_model_constraint.propagate(ctx);
+            self.pattern_model_constraint.propagate();
         }
         if self.status == Resolution::Undecided {
-            self.step_constraints(ctx);
+            self.step_constraints();
         }
 
-        // if (index == -1 || index == 10) && self.status == Resolution::Undecided {
-        //     self.status = Resolution::Decided;
-        //     return Ok(self.status);
-        // }
-
-        self.try_backtrack_until_no_contradiction(ctx)?;
+        self.try_backtrack_until_no_contradiction()?;
         Ok(self.status)
     }
 
-    pub fn step_constraints(&mut self, ctx: &Context<T>) {
+    pub fn step_constraints(&mut self) {
         let constraints_len = self.constraints.len();
 
         for _i in 0..constraints_len {
@@ -354,7 +323,7 @@ impl<T: Topology + Clone> WavePropagator<T> {
                 }
             }
 
-            self.pattern_model_constraint.propagate(ctx);
+            self.pattern_model_constraint.propagate();
             {
                 if self.status != Resolution::Undecided {
                     return;
@@ -365,13 +334,13 @@ impl<T: Topology + Clone> WavePropagator<T> {
         self.deferred_constraints_step = false;
     }
 
-    fn record_backtrack(&mut self, ctx: &Context<T>, index: i32, pattern: i32) -> Result<(), String> {
+    fn record_backtrack(&mut self, index: i32, pattern: i32) -> Result<(), String> {
         // Extract everything we need in one lock acquisition
-        let (backtrack_enabled, current_length, choice_observers, max_depth) = {
+        let (backtrack_enabled, current_length, max_depth) = {
             let current_length = self.dropped_backtrack_items_count +
                 self.backtrack_items.as_ref().map_or(0, |items| items.len());
 
-            (self.backtrack, current_length, self.choice_observers.clone(), self.max_backtrack_depth)
+            (self.backtrack, current_length, self.max_backtrack_depth)
         };
 
         if !backtrack_enabled {
@@ -390,10 +359,8 @@ impl<T: Topology + Clone> WavePropagator<T> {
         }
 
         // Notify choice observers using the cloned vector
-        for co in &choice_observers {
-            self.get_choice_observer(ctx, co.clone())
-                .ok_or("unable to get choice observer")
-                ?.borrow_mut().make_choice(index as usize, pattern as usize);
+        for co in &mut self.choice_observers {
+            co.make_choice(index as usize, pattern as usize);
         }
 
         // Clean up backtracks if they are too long
@@ -424,7 +391,12 @@ impl<T: Topology + Clone> WavePropagator<T> {
     }
 
     // Internal API for constraints
-    pub fn internal_ban(&mut self, ctx: &Context<T>, index: usize, pattern: usize) -> Option<bool> {
+    pub fn internal_ban(&mut self, index: usize, pattern: usize) -> Option<bool> {
+        if self.wave.is_none() {
+            println!("WavePropagator.internal_ban: wave is None!");
+            return None;
+        }
+
         // Record information for backtracking
         if self.backtrack {
             if let Some(ref mut backtrack_items) = self.backtrack_items {
@@ -432,33 +404,20 @@ impl<T: Topology + Clone> WavePropagator<T> {
             }
         }
 
-        self.pattern_model_constraint.do_ban(ctx, index, pattern as i32);
+        self.pattern_model_constraint.do_ban(index, pattern as i32);
 
         // Update the wave
-        let is_contradiction = self.get_wave(ctx)?.borrow_mut().remove_possibility(index, pattern);
+        let is_contradiction = self.wave.unwrap().remove_possibility(index, pattern); // Safe because checked above
 
         // Update trackers
-        for tracker_id in &self.trackers {
-            if let Some(tracker) = self.get_tracker(ctx, tracker_id.clone()) {
-                tracker.borrow_mut().do_ban(index, pattern);
-                continue;
-            }
-
-            if let Some(tracker) = self.get_index_picker_2(ctx, tracker_id.clone()) {
-                tracker.borrow_mut().do_ban(index, pattern);
-                continue;
-            }
-
-            if let Some(tracker) = self.get_pattern_picker_2(ctx, tracker_id.clone()) {
-                tracker.borrow_mut().do_ban(index, pattern);
-                continue;
-            }
+        for tracker in &mut self.trackers {
+            tracker.do_ban(index, pattern);
         }
 
         Some(is_contradiction)
     }
 
-    pub fn internal_select(&mut self, ctx: &Context<T>, index: usize, chosen_pattern: usize) -> Option<bool> {
+    pub fn internal_select(&mut self, index: usize, chosen_pattern: usize) -> Option<bool> {
         // Simple, inefficient way
         if !Optimizations::QUICK_SELECT {
             let pattern_count = self.pattern_count;
@@ -468,11 +427,11 @@ impl<T: Topology + Clone> WavePropagator<T> {
                 }
                 // Check if pattern is available
                 let pattern_available = {
-                    self.get_wave(ctx)?.borrow().get(index, pattern)
+                    self.wave.get(index, pattern)
                 };
 
                 if pattern_available {
-                    if self.internal_ban(ctx, index, pattern)? {
+                    if self.internal_ban(index, pattern)? {
                         return Some(true);
                     }
                 }
@@ -485,7 +444,7 @@ impl<T: Topology + Clone> WavePropagator<T> {
             let mut patterns = Vec::new();
             for pattern in 0..self.pattern_count {
                 if pattern != chosen_pattern {
-                    if self.get_wave(ctx)?.borrow().get(index, pattern) {
+                    if self.wave.get(index, pattern) {
                         patterns.push(pattern);
                     }
                 }
@@ -495,28 +454,27 @@ impl<T: Topology + Clone> WavePropagator<T> {
 
         // Now ban each pattern (this will acquire locks individually)
         for pattern in patterns_to_ban {
-            if self.internal_ban(ctx, index, pattern)? {
+            if self.internal_ban(index, pattern)? {
                 return Some(true);
             }
         }
 
         // Do the select operation on the constraint
         {
-            self.pattern_model_constraint.do_select(ctx, index, chosen_pattern as i32);
+            self.pattern_model_constraint.do_select(index, chosen_pattern as i32);
         }
 
         Some(false)
     }
 
-    fn try_backtrack_until_no_contradiction(&mut self, ctx: &Context<T>) -> Result<(), String> {
+    fn try_backtrack_until_no_contradiction(&mut self) -> Result<(), String> {
         if !self.backtrack {
             return Ok(());
         }
 
         while self.status == Resolution::Contradiction {
-            let backjump_amount = self.get_backtrack_policy(ctx)
+            let backjump_amount = self.backtrack_policy
                 .ok_or("unable to get backtrack policy")
-                ?.borrow_mut()
                 .get_backjump()
                 .ok_or("unable to get backjump")?;
 
@@ -532,7 +490,7 @@ impl<T: Topology + Clone> WavePropagator<T> {
 
                 // Actually undo various bits of state
                 let item = {
-                    self.do_backtrack(ctx)?;
+                    self.do_backtrack()?;
                     let item = if let Some(ref mut choices) = self.prev_choices {
                         choices.pop_back() // Or pop_front?
                     } else {
@@ -547,11 +505,8 @@ impl<T: Topology + Clone> WavePropagator<T> {
 
                 // Update choice observers
                 {
-                    for co in &self.choice_observers {
-                        self.get_choice_observer(ctx, co.clone())
-                            .ok_or("unable to get choice observer")
-                            ?.borrow_mut()
-                            .backtrack();
+                    for co in &mut self.choice_observers {
+                        co.backtrack();
                     }
                 }
 
@@ -561,8 +516,7 @@ impl<T: Topology + Clone> WavePropagator<T> {
                     // Mark the given choice as impossible
                     if let Some(item) = item {
                         if item.index >= 0 {
-                            if self.internal_ban(ctx, item.index as usize, item.pattern as usize).ok_or("unable to internal_ban")? {
-                                // println!("wave_propagator:689");
+                            if self.internal_ban(item.index as usize, item.pattern as usize).ok_or("unable to internal_ban")? {
                                 self.status = Resolution::Contradiction;
                             }
                         }
@@ -576,10 +530,10 @@ impl<T: Topology + Clone> WavePropagator<T> {
 
             // Revalidate status
             if self.status == Resolution::Undecided {
-                self.pattern_model_constraint.propagate(ctx);
+                self.pattern_model_constraint.propagate();
             }
             if self.status == Resolution::Undecided {
-                self.step_constraints(ctx);
+                self.step_constraints();
             }
         }
 
@@ -587,7 +541,7 @@ impl<T: Topology + Clone> WavePropagator<T> {
     }
 
     // Undoes any work that was done since the last backtrack point
-    fn do_backtrack(&mut self, ctx: &Context<T>) -> Result<(), String> {
+    fn do_backtrack(&mut self) -> Result<(), String> {
         let target_length = if let Some(ref mut lengths) = self.backtrack_items_lengths {
             lengths.pop_back().unwrap_or(0) - self.dropped_backtrack_items_count
         } else {
@@ -605,7 +559,7 @@ impl<T: Topology + Clone> WavePropagator<T> {
         }
 
         // Clone tracker references to avoid borrowing conflicts
-        let tracker_refs: Vec<_> = self.trackers.iter().cloned().collect();
+        // let tracker_refs: Vec<_> = self.trackers.iter().cloned().collect();
 
         // Now process each item
         for item in &items_to_undo {
@@ -613,27 +567,14 @@ impl<T: Topology + Clone> WavePropagator<T> {
             let pattern = item.pattern as usize;
 
             // Add the possibility back
-            self.get_wave(ctx).ok_or("unable to get wave")?.borrow_mut().add_possibility(index, pattern);
+            self.wave.ok_or("unable to get wave")?.add_possibility(index, pattern);
 
             // Undo the pattern model constraint
-            self.pattern_model_constraint.undo_ban(ctx, index, pattern as i32);
+            self.pattern_model_constraint.undo_ban(index, pattern as i32);
 
             // Update trackers
-            for tracker_id in &tracker_refs {
-                if let Some(tracker) = self.get_tracker(ctx, tracker_id.clone()) {
-                    tracker.borrow_mut().do_ban(index, pattern);
-                    continue;
-                }
-
-                if let Some(tracker) = self.get_index_picker_2(ctx, tracker_id.clone()) {
-                    tracker.borrow_mut().do_ban(index, pattern);
-                    continue;
-                }
-
-                if let Some(tracker) = self.get_pattern_picker_2(ctx, tracker_id.clone()) {
-                    tracker.borrow_mut().do_ban(index, pattern);
-                    continue;
-                }
+            for tracker in &mut self.trackers {
+                tracker.do_ban(index, pattern);
             }
         }
 
@@ -642,11 +583,11 @@ impl<T: Topology + Clone> WavePropagator<T> {
 
     /// Returns the only possible value of a cell if there is only one,
     /// otherwise returns -1 (multiple possible) or -2 (none possible)
-    pub fn get_decided_pattern(&self, ctx: &Context<T>, index: usize) -> Option<i32> {
+    pub fn get_decided_pattern(&self, index: usize) -> Option<i32> {
         if self.wave.is_none() {
             return Some(Resolution::Contradiction as i32);
         }
-        let wave = self.get_wave(ctx)?;
+        let wave = self.wave?;
         let mut decided_pattern = Resolution::Contradiction as i32;
         for pattern in 0..self.pattern_count {
             if wave.borrow().get(index, pattern) {
@@ -660,15 +601,11 @@ impl<T: Topology + Clone> WavePropagator<T> {
         Some(decided_pattern)
     }
 
-    pub fn set_self_ref(&mut self, id: WavePropagatorId) {
-        self.self_ref = Some(id);
-    }
-
-    pub fn add_choice_observer(&mut self, observer: ChoiceObserverId) {
+    pub fn add_choice_observer(&mut self, observer: Box<dyn ChoiceObserver>) {
         self.choice_observers.push(observer);
     }
 
-    pub fn add_tracker(&mut self, tracker: TrackerId) {
+    pub fn add_tracker(&mut self, tracker: Box<dyn SuperTracker<T>>) {
         self.trackers.push(tracker);
     }
 
@@ -679,10 +616,6 @@ impl<T: Topology + Clone> WavePropagator<T> {
 
 // getters
 impl<T: Topology + Clone> WavePropagator<T> {
-    pub fn get_wave_id(&self) -> Option<WaveId> {
-        self.wave.clone()
-    }
-
     pub fn get_frequencies(&self) -> Vec<f64> {
         self.frequencies.clone()
     }
@@ -695,116 +628,7 @@ impl<T: Topology + Clone> WavePropagator<T> {
         self.status = Resolution::Contradiction;
     }
 
-    pub fn get_wave(&self, ctx: &Context<T>) -> Option<Rc<RefCell<Wave>>> {
-        ctx
-            .wave()
-            .get(self.wave.unwrap()) // Panicking to catch logic errors here; there should always be a wave.
-    }
-
-    fn get_index_picker(&self, ctx: &Context<T>) -> Option<Rc<RefCell<dyn SuperTracker<T>>>> {
-        let picker = ctx
-            .index_pickers()
-            .get(self.index_picker)
-            ?.clone();
-
-        if !picker.borrow().is_index_picker() {
-            return None;
-        }
-
-        Some(picker.clone())
-    }
-
-    fn get_pattern_picker(&self, ctx: &Context<T>) -> Option<Rc<RefCell<dyn SuperTracker<T>>>> {
-        let picker = ctx
-            .pattern_pickers()
-            .get(self.pattern_picker)
-            ?.clone();
-
-        if !picker.borrow().is_pattern_picker() {
-            return None;
-        }
-
-        Some(picker.clone())
-    }
-
-    fn get_choice_observer(&self, ctx: &Context<T>, id: ChoiceObserverId) -> Option<Rc<RefCell<dyn ChoiceObserver>>> {
-        ctx
-            .choice_observers()
-            .get(id)
-    }
-
-    fn get_tracker(&self, ctx: &Context<T>, id: TrackerId) -> Option<Rc<RefCell<dyn SuperTracker<T>>>> {
-        let tracker = ctx
-            .trackers()
-            .get(id)
-            ?.clone();
-
-        if !tracker.borrow().is_tracker() {
-            return None;
-        }
-
-        Some(tracker.clone())
-    }
-
-    // TODO: Better name
-    fn get_index_picker_2(&self, ctx: &Context<T>, id: TrackerId) -> Option<Rc<RefCell<dyn SuperTracker<T>>>> {
-        let picker = ctx
-            .index_pickers()
-            .get(id)
-            ?.clone();
-
-        if !picker.borrow().is_index_picker() {
-            return None;
-        }
-
-        Some(picker.clone())
-    }
-
-    // TODO: Better name
-    fn get_pattern_picker_2(&self, ctx: &Context<T>, id: TrackerId) -> Option<Rc<RefCell<dyn SuperTracker<T>>>> {
-        let picker = ctx
-            .pattern_pickers()
-            .get(id)
-            ?.clone();
-
-        if !picker.borrow().is_pattern_picker() {
-            return None;
-        }
-
-        Some(picker.clone())
-    }
-
-    fn get_backtrack_policy(&self, ctx: &Context<T>) -> Option<Rc<RefCell<dyn BacktrackPolicy<T>>>> {
-        ctx
-            .backtrack_policy()
-            .get(self.backtrack_policy?)
+    pub fn get_wave(&self) -> &Option<Wave> {
+        &self.wave
     }
 }
-
-fn get_topology<T: Topology + Clone>(ctx: &Context<T>, id: TopologyId) -> Option<Rc<RefCell<T>>> {
-    ctx
-        .topologies()
-        .clone()
-        .get(id)
-}
-
-fn get_wave_propagator<T: Topology + Clone>(ctx: &Context<T>, id: WavePropagatorId) -> Option<Rc<RefCell<WavePropagator<T>>>> {
-    ctx
-        .wave_propagators()
-        .clone()
-        .get(id)
-}
-
-// fn get_index_picker<T: Topology + Clone>(ctx: &Context<T>, id: TrackerId) -> Rc<RefCell<dyn IndexPicker<T>>> {
-//     ctx
-//         .index_pickers()
-//         .get(id)
-//         .unwrap()
-// }
-//
-// fn get_pattern_picker<T: Topology + Clone>(ctx: &Context<T>, id: TrackerId) -> Rc<RefCell<dyn PatternPicker<T>>> {
-//     ctx
-//         .pattern_pickers()
-//         .get(id)
-//         .unwrap()
-// }
