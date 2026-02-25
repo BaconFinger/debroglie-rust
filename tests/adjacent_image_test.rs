@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Mutex;
+use image::{GenericImageView, ImageReader, Pixel, Rgba, RgbaImage};
 use debroglie_rust::context::Context;
 use debroglie_rust::models::adjacent_model::AdjacentModel;
 use debroglie_rust::resolution::Resolution;
@@ -10,54 +11,24 @@ use debroglie_rust::tile_propagator_options::{BacktrackType, TilePropagatorOptio
 use debroglie_rust::topology::grid_topology::GridTopology;
 use debroglie_rust::topology::ragged_topology_array_2d::RaggedTopoArray2D;
 use debroglie_rust::topology::topo_array::TopoArray;
+use crate::full_test::{debug_print_output, output_to_visuals, Pcg32};
 
 #[cfg(test)]
-
-#[test]
-pub fn test_rng_outputs() {
-    let cs = [
-        "0.3286364133429067",
-        "0.7824954060203275",
-        "0.14642473965720237",
-        "0.5659021480618759",
-        "0.2598910905544348",
-        "0.33108426512400624",
-        "0.9020299408067738",
-        "0.3494575854319545",
-        "0.23938741509007289",
-        "0.26160627535898817",
-    ];
-    let rs = [
-        "0.3286364133429067",
-        "0.7824954060203275",
-        "0.14642473965720237",
-        "0.5659021480618759",
-        "0.2598910905544348",
-        "0.33108426512400624",
-        "0.9020299408067738",
-        "0.3494575854319545",
-        "0.23938741509007289",
-        "0.26160627535898817",
-    ];
-
-    for (c, r) in cs.iter().zip(rs.iter()) {
-        assert_eq!(c, r);
-    }
-}
 
 const width: usize = 5;
 const height: usize = 5;
 
 #[test]
-pub fn full_test() {
+pub fn test_simple_adjacent_image() {
     // Arrange
-
     let ctx: Context<GridTopology> = Context::new();
+    let prpl: Rgba<u8> = Rgba([100, 0, 255, 255]); // Shortening name to visually align with 'blue' in arrays.
+    let blue: Rgba<u8> = Rgba([0, 0, 255, 255]);
 
     let initial_data = vec![
-        vec!['_', '_', '_'],
-        vec!['_', '*', '_'],
-        vec!['_', '_', '_'],
+        vec![Rgba([100, 0, 255, 255]), Rgba([100, 0, 255, 255]), Rgba([100, 0, 255, 255])],
+        vec![Rgba([100, 0, 255, 255]), Rgba([000, 0, 255, 255]), Rgba([100, 0, 255, 255])],
+        vec![Rgba([100, 0, 255, 255]), Rgba([100, 0, 255, 255]), Rgba([100, 0, 255, 255])],
     ];
     let initial_vec = initial_data
         .into_iter()
@@ -103,11 +74,11 @@ pub fn full_test() {
     // debug_print_output(&output_visuals);
 
     let expected_output = vec![
-        vec!['_', '_', '_', '_', '_'],
-        vec!['*', '_', '_', '_', '_'],
-        vec!['_', '_', '_', '_', '_'],
-        vec!['_', '_', '_', '_', '_'],
-        vec!['_', '_', '_', '_', '_'],
+        vec![prpl.clone(), prpl.clone(), prpl.clone(), prpl.clone(), prpl.clone()],
+        vec![blue.clone(), prpl.clone(), prpl.clone(), prpl.clone(), prpl.clone()],
+        vec![prpl.clone(), prpl.clone(), prpl.clone(), prpl.clone(), prpl.clone()],
+        vec![prpl.clone(), prpl.clone(), prpl.clone(), prpl.clone(), prpl.clone()],
+        vec![prpl.clone(), prpl.clone(), prpl.clone(), prpl.clone(), prpl.clone()],
     ];
 
     assert_eq!(expected_output.len(), output_visuals.len());
@@ -115,25 +86,21 @@ pub fn full_test() {
     for (y, row) in expected_output.iter().enumerate() {
         for (x, col) in row.iter().enumerate() {
             assert_eq!(expected_output[y].len(), output_visuals[y].len());
-            assert_eq!(format!("{}", *col), format!("{}", output_visuals[y][x]));
+            let actual = output_visuals[y][x].as_pixel().unwrap();
+            assert_pixel_eq(col, actual);
         }
     }
 }
 
 #[test]
-pub fn speed_test() {
-    // Arrange
-    let start = std::time::Instant::now();
-    let local_width = 200;
-    let local_height = 200;
-    let ctx: Context<GridTopology> = Context::new();
+pub fn test_adjacent_image_from_file() {
+    println!("{}", std::env::current_dir().unwrap().as_path().display());
+    let img = ImageReader::open("tests/samples/pathway.png").unwrap().decode().unwrap().into_rgba8();
+    let img_array = image_to_rgba8_array(&img);
 
-    let initial_data = vec![
-        vec!['_', '_', '_'],
-        vec!['_', '*', '_'],
-        vec!['_', '_', '_'],
-    ];
-    let initial_vec = initial_data
+    // Arrange
+    let ctx: Context<GridTopology> = Context::new();
+    let initial_vec = img_array
         .into_iter()
         .map(|x| x
             .clone()
@@ -142,9 +109,10 @@ pub fn speed_test() {
             .collect::<Vec<Tile>>()
         )
         .collect::<Vec<Vec<Tile>>>();
+
     let initial_vec = ctx.tiles().add_vec_2d(initial_vec);
 
-    let topology = GridTopology::new_2d(local_width, local_height, false);
+    let topology = GridTopology::new_2d(48, 48, false);
     let topology = ctx.topologies().add(topology);
 
     let sample = RaggedTopoArray2D::new(&ctx, initial_vec, false);
@@ -172,17 +140,50 @@ pub fn speed_test() {
     let output = tile_propagator.borrow().to_value_array(&ctx);
     assert!(output.is_ok());
 
-    let end = std::time::Instant::now();
-    println!("Time elapsed: {:?}", end - start);
+    // Assert
+    let output_visuals = output_to_visuals_2(&ctx, output.unwrap(), 48, 48);
+    let expected_output = load_snapshot();
+    // save_output_image(&output_visuals);
+
+    assert_eq!(expected_output.len(), output_visuals.len());
+    for (y, row) in expected_output.iter().enumerate() {
+        for (x, col) in row.iter().enumerate() {
+            assert_eq!(expected_output[y].len(), output_visuals[y].len());
+            let actual = output_visuals[y][x].as_pixel().unwrap();
+            assert_pixel_eq(col, actual);
+        }
+    }
 }
 
-pub(crate) fn output_to_visuals(ctx: &Context<GridTopology>, output_result: Box<dyn TopoArray<TileVisual, GridTopology>>) -> Vec<Vec<TileVisual>> {
+fn assert_pixel_eq(expected: &Rgba<u8>, actual: &Rgba<u8>) {
+    let expected_channels = expected.channels();
+    let actual_channels = actual.channels();
+    assert_eq!(expected_channels.len(), actual_channels.len());
+    assert_eq!(expected_channels[0], actual_channels[0], "R");
+    assert_eq!(expected_channels[1], actual_channels[1], "G");
+    assert_eq!(expected_channels[2], actual_channels[2], "B");
+    assert_eq!(expected_channels[3], actual_channels[3], "A");
+}
+
+fn image_to_rgba8_array(img: &RgbaImage) -> Vec<Vec<Rgba<u8>>> {
+    let w = img.width() as usize;
+    let h = img.height() as usize;
+
+    (0..h)
+        .map(|y| {
+            (0..w)
+                .map(|x| img.get_pixel(x as u32, y as u32).clone())
+                .collect()
+        })
+        .collect()
+}
+fn output_to_visuals_2(ctx: &Context<GridTopology>, output_result: Box<dyn TopoArray<TileVisual, GridTopology>>, w: usize, h: usize) -> Vec<Vec<TileVisual>> {
     let mut output_visuals: Vec<Vec<TileVisual>> = vec![Vec::new(); 0];
-    for y in 0..height {
+    for y in 0..h {
         if output_visuals.len() < y + 1 {
             output_visuals.push(Vec::new());
         }
-        for x in 0..width {
+        for x in 0..w {
             let output_visual = output_result.get_coord_2d(&ctx, x, y);
             // print!("{}", output_visual.unwrap());
             output_visuals[y].push(output_visual.unwrap().clone());
@@ -192,58 +193,23 @@ pub(crate) fn output_to_visuals(ctx: &Context<GridTopology>, output_result: Box<
     output_visuals
 }
 
-pub(crate) fn debug_print_output(output_visuals: &Vec<Vec<TileVisual>>) {
-    for y in output_visuals.iter() {
-        for x in y.iter() {
-            print!("{}", x);
+fn save_output_image(output_visuals: &Vec<Vec<TileVisual>>) {
+    let output_y = output_visuals.len();
+    let output_x = output_visuals[0].len(); // big assumption
+
+    let mut output_img = RgbaImage::new(output_x as u32, output_y as u32); // could be sketchy
+
+    for (y, row) in output_visuals.iter().enumerate() {
+        for (x, col) in row.iter().enumerate() {
+            let pixel = col.as_pixel().unwrap();
+            output_img.put_pixel(x as u32, y as u32, pixel.clone());
         }
-        println!();
     }
+
+    output_img.save("tests/samples/pathway_output.png").unwrap();
 }
 
-/// Just for testing that the C# and Rust implementations produce the same output.
-#[derive(Clone)]
-pub struct Pcg32 {
-    state: u64,
-}
-
-impl Pcg32 {
-    const MULTIPLIER: u64 = 6364136223846793005;
-    const INCREMENT:  u64 = 1442695040888963407;
-
-    /// Create a new PCG32 RNG from a 64-bit seed.
-    pub fn new(seed: u64) -> Self {
-        // Same seeding scheme as the reference pcg32_init:
-        // state = seed + increment; then advance once.
-        let mut rng = Pcg32 {
-            state: seed.wrapping_add(Self::INCREMENT),
-        };
-        rng.next_u32(); // warm up
-        rng
-    }
-
-    /// Generate the next 32-bit output (pcg32()).
-    pub fn next_u32(&mut self) -> u32 {
-        let x = self.state;
-        let count = (x >> 59) as u32; // 59 = 64 - 5
-
-        // state = state * multiplier + increment (mod 2^64)
-        self.state = x
-            .wrapping_mul(Self::MULTIPLIER)
-            .wrapping_add(Self::INCREMENT);
-
-        // xorshift high, then random rotate
-        let xorshifted = (((x >> 18) ^ x) >> 27) as u32; // 18 = (64 - 27)/2, 27 = 32 - 5
-        xorshifted.rotate_right(count)
-    }
-
-    /// Generate a uniform f64 in [0, 1) using 53 random bits.
-    pub fn next_f64(&mut self) -> f64 {
-        // Standard technique: combine 27 + 26 random bits into a 53-bit mantissa.
-        let hi = (self.next_u32() >> 5) as u64; // 27 bits
-        let lo = (self.next_u32() >> 6) as u64; // 26 bits
-        let value = (hi << 26) | lo;           // 53 bits total
-
-        (value as f64) * (1.0 / ((1u64 << 53) as f64))
-    }
+fn load_snapshot() -> Vec<Vec<Rgba<u8>>> {
+    let snapshot = ImageReader::open("tests/snapshots/pathway_adjacent.png").unwrap().decode().unwrap().into_rgba8();
+    image_to_rgba8_array(&snapshot)
 }

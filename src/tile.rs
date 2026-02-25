@@ -1,23 +1,21 @@
 use std::fmt;
 use std::fmt::{Debug, Display};
 use std::hash::Hasher;
+use image::{Pixel, Rgba, RgbaImage};
 use serde_derive::{Deserialize, Serialize};
 
 /// Thin wrapper around a value of any type. This is primarily what the library takes in and puts out.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default)]
 pub struct Tile {
-    name: String,
-    // value: Option<Box<dyn TileValue>>,
+    name: String, // TODO: Consider removing this.
     value: TileVisual,
-
-    // String representation of the type of the value. Empty string if value is None.
-    // pub value_type: &'static str,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Default)]
 pub enum TileVisual {
     Glyph { ch: char },
     Text { text: String },
+    Pixel { pixel: Rgba<u8>},
 
     #[default]
     Default
@@ -44,6 +42,12 @@ impl PartialEq<String> for TileVisual {
     }
 }
 
+impl PartialEq<Rgba<u8>> for TileVisual {
+    fn eq(&self, other: &Rgba<u8>) -> bool {
+        matches!(self, TileVisual::Pixel { pixel } if pixel == other)
+    }
+}
+
 
 impl fmt::Display for TileVisual {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -53,6 +57,11 @@ impl fmt::Display for TileVisual {
 
             TileVisual::Text { text } =>
                 write!(f, "{}", text),
+
+            TileVisual::Pixel { pixel: image } => {
+                let rgba = image.channels();
+                write!(f, "[RGBA {},{},{},{}]", rgba[0], rgba[1], rgba[2], rgba[3])
+            }
 
             TileVisual::Default => write!(f, "Default"),
 
@@ -73,6 +82,15 @@ impl ToTileVisual for char {
     }
 }
 
+impl TileVisual {
+    pub fn as_pixel(&self) -> Option<&Rgba<u8>> {
+        match self {
+            TileVisual::Pixel { pixel } => Some(pixel),
+            _ => None,
+        }
+    }
+}
+
 impl Tile {
     pub fn new(name: String, value: TileVisual) -> Self
     {
@@ -89,6 +107,10 @@ impl Tile {
 
     pub fn from_text(text: String) -> Self {
         Self::new(text.clone(), TileVisual::Text { text })
+    }
+
+    pub fn from_pixel(pixel: Rgba<u8>) -> Self {
+        Self::new(format!("{:?}", pixel), TileVisual::Pixel { pixel })
     }
 
     pub fn get_name(&self) -> &String {
@@ -119,6 +141,12 @@ pub trait ToTile {
 impl ToTile for char {
     fn to_tile(self) -> Tile {
         Tile::from_char(self)
+    }
+}
+
+impl ToTile for Rgba<u8> {
+    fn to_tile(self) -> Tile {
+        Tile::from_pixel(self)
     }
 }
 
