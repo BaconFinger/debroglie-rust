@@ -6,7 +6,7 @@ use crate::refactor::trackers::tracker::ChoiceObserver;
 use crate::refactor::wfc::wave_propagator::WavePropagator;
 
 pub trait BacktrackPolicy<T: Topology + Clone> {
-    fn init(&mut self, ctx: &Context<T>, wave_propagator: &mut WavePropagator<T>) -> Result<(), String>;
+    fn init(&mut self, wave_propagator: &mut WavePropagator<T>) -> Result<(), String>;
 
     /// Returns:
     /// 0  = Give up
@@ -27,7 +27,7 @@ impl<T: Topology + Clone> ConstantBacktrackPolicy<T> {
 }
 
 impl<T> BacktrackPolicy<T> for ConstantBacktrackPolicy<T> where T: Topology + Clone {
-    fn init(&mut self, ctx: &Context<T>, _wave_propagator: &mut WavePropagator<T>) -> Result<(), String> {
+    fn init(&mut self, _wave_propagator: &mut WavePropagator<T>) -> Result<(), String> {
         // Empty implementation
         Ok(())
     }
@@ -77,13 +77,12 @@ impl<T: Topology + Clone> PatienceBackjumpPolicy<T> {
     }
 }
 
-impl<T: Topology + Clone> BacktrackPolicy<T> for PatienceBackjumpPolicy<T> {
-    fn init(&mut self, ctx: &Context<T>, wave_propagator: &mut WavePropagator<T>) -> Result<(), String> {
+impl<T: Topology + Clone + 'static> BacktrackPolicy<T> for PatienceBackjumpPolicy<T> {
+    fn init(&mut self, wave_propagator: &mut WavePropagator<T>) -> Result<(), String> {
         let choice_observer = PatienceChoiceObserver {
             policy: self as *mut PatienceBackjumpPolicy<T>,
         };
-        let id = ctx.choice_observers().add(Rc::new(RefCell::new(choice_observer)));
-        wave_propagator.add_choice_observer(id);
+        wave_propagator.add_choice_observer(Box::new(choice_observer));
         self.counter = 0;
         self.depth = 0;
         self.max_depth = 0;

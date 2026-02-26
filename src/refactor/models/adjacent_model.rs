@@ -1,14 +1,14 @@
-use crate::context::{Context, TileId, TopologyId};
-use crate::models::tile_model::TileModel;
-use crate::topology::direction::{
+use crate::refactor::models::tile_model::TileModel;
+use crate::refactor::topology::direction::{
     Direction, DirectionSet, DirectionSetType,
 };
-use crate::topology::grid_topology::GridTopology;
-use crate::topology::topo_array::TopoArray;
-use crate::topology::topology::Topology;
+use crate::refactor::topology::grid_topology::GridTopology;
+use crate::refactor::topology::topo_array::TopoArray;
+use crate::refactor::topology::topology::Topology;
 use std::collections::{HashMap, HashSet};
-use crate::models::tile_model_mapping::TileModelMapping;
-use crate::wfc::pattern_model::PatternModel;
+use crate::refactor::models::tile_model_mapping::TileModelMapping;
+use crate::refactor::tile::{Tile, TileId};
+use crate::refactor::wfc::pattern_model::PatternModel;
 
 /// AdjacentModel constrains which tiles can be placed adjacent to which other ones.
 /// It does so by maintaining for each tile, a list of tiles that can be placed next to it in each direction.
@@ -30,26 +30,6 @@ pub struct AdjacentModel {
 }
 
 impl AdjacentModel {
-    // /// Constructs an AdjacentModel and initializes it with a given sample.
-    // pub fn create<T>(sample: Vec<Vec<T>>, periodic: bool) -> Result<Self, String>
-    // where
-    //     T: Clone + Into<Tile> + std::fmt::Debug + std::any::Any + Send + Sync + PartialEq + std::hash::Hash + 'static,
-    // {
-    //     let topo_array = TopoArray2D::new(sample, periodic);
-    //     let tile_array = topo_array.to_tiles()
-    //         .map_err(|e| format!("Failed to convert to tiles: {}", e))?;
-    //     Self::create_from_topo_array(&tile_array)
-    // }
-    //
-    // /// Constructs an AdjacentModel and initializes it with a given sample.
-    // pub fn create_from_topo_array<T: TopoArray<Tile, GridTopology>>(
-    //     sample: &T
-    // ) -> Result<Self, String> {
-    //     let mut model = Self::new();
-    //     model.add_sample_simple(sample)?;
-    //     Ok(model)
-    // }
-
     /// Constructs an AdjacentModel.
     pub fn new() -> Self {
         Self {
@@ -59,20 +39,6 @@ impl AdjacentModel {
             propagator: Vec::new(),
         }
     }
-
-    // /// Constructs an AdjacentModel with specified directions.
-    // pub fn with_directions(directions: DirectionSet) -> Self {
-    //     let mut model = Self::new();
-    //     model.set_directions(directions).unwrap(); // Safe since directions is None initially
-    //     model
-    // }
-
-    // /// Constructs an AdjacentModel and initializes it with a given sample.
-    // pub fn from_sample<T: TopoArray<Tile, GridTopology>>(sample: &T) -> Result<Self, String> {
-    //     let mut model = Self::new();
-    //     model.add_sample_simple(sample)?;
-    //     Ok(model)
-    // }
 
     /// Sets the directions of the Adjacent model, if it has not been set at construction.
     /// This specifies how many neighbours each tile has.
@@ -106,6 +72,166 @@ impl AdjacentModel {
             None => Err("Directions must be set before calling this method".to_string()),
         }
     }
+
+    pub fn add_sample_simple<T: Topology>(
+        &mut self,
+        sample: &dyn TopoArray<Tile, GridTopology>,
+    ) -> Result<(), String> {
+        let (width, height, depth, direction_count) = {
+            let topology = sample.topology().ok_or("Failed to get topology")?;
+            self.set_directions(topology.directions().clone())?;
+
+            let width = topology.width();
+            let height = topology.height();
+            let depth = topology.depth();
+            let direction_count = topology.directions().count();
+            (width, height, depth, direction_count)
+        };
+
+        for z in 0..depth {
+            for y in 0..height {
+                for x in 0..width {
+                    let index = sample.topology().ok_or("Failed to get topology")?
+                        .get_index(x, y, z)
+                        .map_err(|e| format!("Invalid coordinates ({}, {}, {}): {}", x, y, z, e))?;
+
+                    if !sample.topology().ok_or("Failed to get topology")?.contains_index(index) {
+                        continue;
+                    }
+
+                    // Need the tile to get the pattern.
+                    let tile = sample.get_id_from_coord(x, y, z);
+                    if tile.is_none() {
+                        return Err(format!("Failed to get tile at ({}, {}, {})", x, y, z))
+                    }
+                    let tile = TileId(tile.unwrap());
+
+                    // Find the pattern and update the frequency
+                    let pattern = self.get_pattern(tile, sample);
+                    if pattern < self.frequencies.len() {
+                        self.frequencies[pattern] += 1.0;
+                    }
+
+                    // Update propagator - collect adjacent tiles first
+                    // Much more verbose than the C# to avoid borrowing conflicts
+                    let mut adjacent_tiles = Vec::new();
+                    for d in 0..direction_count {
+                        let direction = Direction::from_index(d)
+                            .ok_or(format!("unable to get direction from index {}", d))?;
+                        let result = sample.topology().ok_or("Failed to get topology")?.try_move_coord_to_coord(
+                            x,
+                            y,
+                            z,
+                            direction,
+                        );
+                        if result.is_err() {
+                            return Err(result.unwrap_err().to_string());
+                        }
+                        if let Some((x2, y2, z2)) = result.unwrap() {
+                            let tile2 = sample
+                                .get_id_from_coord(x2, y2, z2)
+                                .ok_or("Failed to get adjacent tile".to_string())?;
+                            adjacent_tiles.push((d, TileId(tile2)));
+                        }
+                    }
+
+                    // Now process adjacent tiles
+                    for (d, tile2) in adjacent_tiles {
+                        let pattern2 = self.get_pattern(tile2, sample);
+
+                        // Ensure propagator is large enough
+                        while self.propagator.len() <= pattern.max(pattern2) {
+                            self.propagator.push(vec![HashSet::new(); direction_count]);
+                        }
+
+                        self.propagator[pattern][d].insert(pattern2);
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn get_pattern(&mut self, tile: TileId, sample: &dyn TopoArray<Tile, GridTopology>,) -> usize {
+        let direction_count = self.directions.as_ref().map(|d| d.count()).unwrap_or(4); // Default fallback
+
+        let matching_tile = self.in_tiles_to_patterns(tile, sample);
+        if let Some(matching_tile) = matching_tile {
+            if let Some(&pattern) = self.tiles_to_patterns.get(&matching_tile) {
+                return pattern;
+            }
+        }
+
+        let pattern = self.tiles_to_patterns.len();
+        self.tiles_to_patterns.insert(tile, pattern);
+        self.frequencies.push(0.0);
+        self.propagator.push(vec![HashSet::new(); direction_count]);
+
+        pattern
+    }
+
+    /// Checks if the given tile is in the tiles_to_patterns mapping. If so, returns the TileId.
+    /// In the C# package a Tile could be used as a Key in a HashMap, and it would compare by the
+    /// value of the tile (e.g., 2 different tiles with the contents of '_' would be treated as the same
+    /// Key). So this function replicates this behavior by comparing the value of the tiles.
+    fn in_tiles_to_patterns(&self, tile: TileId, sample: &dyn TopoArray<Tile, GridTopology>,) -> Option<TileId> {
+        let new_tile = sample.get_value_from_index(tile.0)?;
+        let matching_tile = {
+            let mut result = None;
+            for (t_key, &_pattern) in &self.tiles_to_patterns {
+                if *t_key == tile {
+                    result = Some(t_key.clone());
+                    break;
+                }
+                let existing_tile = sample.get_value_from_index(t_key.0)?;
+
+                if existing_tile.get_value() == new_tile.get_value() {
+                    result = Some(t_key.clone());
+                    break;
+                }
+            }
+            result
+        };
+        matching_tile
+    }
+
+    /*
+
+    // /// Constructs an AdjacentModel and initializes it with a given sample.
+    // pub fn create<T>(sample: Vec<Vec<T>>, periodic: bool) -> Result<Self, String>
+    // where
+    //     T: Clone + Into<Tile> + std::fmt::Debug + std::any::Any + Send + Sync + PartialEq + std::hash::Hash + 'static,
+    // {
+    //     let topo_array = TopoArray2D::new(sample, periodic);
+    //     let tile_array = topo_array.to_tiles()
+    //         .map_err(|e| format!("Failed to convert to tiles: {}", e))?;
+    //     Self::create_from_topo_array(&tile_array)
+    // }
+    //
+    // /// Constructs an AdjacentModel and initializes it with a given sample.
+    // pub fn create_from_topo_array<T: TopoArray<Tile, GridTopology>>(
+    //     sample: &T
+    // ) -> Result<Self, String> {
+    //     let mut model = Self::new();
+    //     model.add_sample_simple(sample)?;
+    //     Ok(model)
+    // }
+
+    // /// Constructs an AdjacentModel with specified directions.
+    // pub fn with_directions(directions: DirectionSet) -> Self {
+    //     let mut model = Self::new();
+    //     model.set_directions(directions).unwrap(); // Safe since directions is None initially
+    //     model
+    // }
+
+    // /// Constructs an AdjacentModel and initializes it with a given sample.
+    // pub fn from_sample<T: TopoArray<Tile, GridTopology>>(sample: &T) -> Result<Self, String> {
+    //     let mut model = Self::new();
+    //     model.add_sample_simple(sample)?;
+    //     Ok(model)
+    // }
+
     //
     // /// Finds a tile and all its rotations, and sets their total frequency.
     // pub fn set_frequency_with_rotation(
@@ -327,144 +453,13 @@ impl AdjacentModel {
     //
     //     Ok(())
     // }
-
-    pub fn add_sample_simple(
-        &mut self,
-        ctx: &Context<GridTopology>,
-        sample: &dyn TopoArray<TileId, GridTopology>,
-    ) -> Result<(), String> {
-        let topology_ref = sample
-            .topology(ctx)
-            .ok_or("could not get topology from sample")
-            ?.clone();
-        let topology = topology_ref.borrow(); // Boy I hope this doesn't blow up in my face.
-
-        self.set_directions(topology.directions().clone())?;
-
-        let width = topology.width();
-        let height = topology.height();
-        let depth = topology.depth();
-        let direction_count = topology.directions().count();
-
-        for z in 0..depth {
-            for y in 0..height {
-                for x in 0..width {
-                    let index = topology
-                        .get_index(x, y, z)
-                        .map_err(|e| format!("Invalid coordinates ({}, {}, {}): {}", x, y, z, e))?;
-
-                    if !topology.contains_index(index) {
-                        continue;
-                    }
-
-                    // Need the tile to get the pattern.
-                    let tile = sample
-                        .get_coord(ctx, x, y, z)
-                        .map_err(|e| format!("Failed to get tile at ({}, {}, {}): {}", x, y, z, e))?
-                        .clone();
-
-                    // Find the pattern and update the frequency
-                    let pattern = self.get_pattern(ctx, tile);
-                    if pattern < self.frequencies.len() {
-                        self.frequencies[pattern] += 1.0;
-                    }
-
-                    // Update propagator - collect adjacent tiles first
-                    // Much more verbose than the C# to avoid borrowing conflicts
-                    let mut adjacent_tiles = Vec::new();
-                    for d in 0..direction_count {
-                        let direction = Direction::from_index(d)
-                            .ok_or(format!("unable to get direction from index {}", d))?;
-                        let result = topology.try_move_coord_to_coord(
-                            x,
-                            y,
-                            z,
-                            direction,
-                        );
-                        if result.is_err() {
-                            return Err(result.unwrap_err().to_string());
-                        }
-                        if let Some((x2, y2, z2)) = result.unwrap() {
-                            let tile2 = sample
-                                .get_coord(ctx, x2, y2, z2)
-                                .map_err(|e| format!("Failed to get adjacent tile: {}", e))?
-                                .clone();
-                            adjacent_tiles.push((d, tile2));
-                        }
-                    }
-
-                    // Now process adjacent tiles
-                    for (d, tile2) in adjacent_tiles {
-                        let pattern2 = self.get_pattern(ctx, tile2);
-
-                        // Ensure propagator is large enough
-                        while self.propagator.len() <= pattern.max(pattern2) {
-                            self.propagator.push(vec![HashSet::new(); direction_count]);
-                        }
-
-                        self.propagator[pattern][d].insert(pattern2);
-                    }
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    fn get_pattern(&mut self, ctx: &Context<GridTopology>, tile: TileId) -> usize {
-        let direction_count = self.directions.as_ref().map(|d| d.count()).unwrap_or(4); // Default fallback
-
-        let matching_tile = self.in_tiles_to_patterns(ctx, tile);
-        if let Some(matching_tile) = matching_tile {
-            if let Some(&pattern) = self.tiles_to_patterns.get(&matching_tile) {
-                return pattern;
-            }
-        }
-
-        let pattern = self.tiles_to_patterns.len();
-        self.tiles_to_patterns.insert(tile, pattern);
-        self.frequencies.push(0.0);
-        self.propagator.push(vec![HashSet::new(); direction_count]);
-
-        pattern
-    }
-
-    /// Checks if the given tile is in the tiles_to_patterns mapping. If so, returns the TileId.
-    /// In the C# package a Tile could be used as a Key in a HashMap, and it would compare by the
-    /// value of the tile (e.g., 2 different tiles with the contents of '_' would be treated as the same
-    /// Key). So this function replicates this behavior by comparing the value of the tiles.
-    fn in_tiles_to_patterns(&self, ctx: &Context<GridTopology>, tile: TileId) -> Option<TileId> {
-        let new_tile = ctx.tiles().get(tile)?.clone();
-        let matching_tile = {
-            let mut result = None;
-            for (t_key, &_pattern) in &self.tiles_to_patterns {
-                if *t_key == tile {
-                    result = Some(t_key.clone());
-                    break;
-                }
-                let existing_tile = ctx.tiles().get(t_key.clone())?.clone();
-
-                if existing_tile.borrow().get_value() == new_tile.borrow().get_value() {
-                    result = Some(t_key.clone());
-                    break;
-                }
-            }
-            result
-        };
-        matching_tile
-    }
+    */
 }
 
 impl TileModel<GridTopology> for AdjacentModel {
-    fn get_tile_model_mapping(&mut self, ctx: &Context<GridTopology>, topology: TopologyId) -> Result<TileModelMapping<GridTopology>, String> {
-        let grid_topology = ctx
-            .topologies()
-            .get(topology)
-            .ok_or("unable to get topology")
-            ?.clone();
-
+    fn get_tile_model_mapping(&mut self, grid_topology: &GridTopology) -> Result<TileModelMapping<GridTopology>, String> {
         self.require_directions()?;
-        self.set_directions(grid_topology.borrow().directions().clone())?;
+        self.set_directions(grid_topology.directions().clone())?;
 
         let total_frequency: f64 = self.frequencies.iter().sum();
         if total_frequency == 0.0 {
@@ -505,7 +500,7 @@ impl TileModel<GridTopology> for AdjacentModel {
         patterns_to_tiles_by_offset.insert(0, patterns_to_tiles);
 
         Ok(TileModelMapping::new(
-            topology,
+            // &grid_topology,
             pattern_model,
             tiles_to_patterns_by_offset,
             patterns_to_tiles_by_offset,
@@ -559,17 +554,169 @@ impl AdjacentModel {
         }
     }
 
-    pub fn debug_print_tiles_to_patterns<T: Topology + Clone + 'static>(&self, ctx: &Context<T>) {
+    pub fn debug_print_tiles_to_patterns<T: Topology + Clone + 'static>(&self, tiles: &Vec<Tile>) {
         for (tile, pattern) in &self.tiles_to_patterns {
-            let res = ctx.tiles().get(tile.clone());
+            let res = tiles.get(tile.0);
             match res {
                 None => {
                     println!("Tile {}: {}", "", pattern);
                 }
                 Some(t) => {
-                    println!("Tile {}: {}", t.borrow(), pattern);
+                    println!("Tile {}: {}", t, pattern);
                 }
             }
         }
+    }
+}
+
+mod tests {
+    use crate::context::Context;
+    use crate::refactor::tile::ToTile;
+    use crate::refactor::topology::direction::DirectionSetType::Cartesian2d;
+    use crate::refactor::topology::ragged_topology_array_2d::RaggedTopoArray2D;
+    use super::*;
+
+    #[test]
+    fn test_larger_sample() {
+        // Arrange
+        let initial_data = vec![
+            vec!['_', '_', '_'],
+            vec!['_', '*', '_'],
+            vec!['_', '_', '_'],
+        ];
+        let initial_vec = initial_data
+            .into_iter()
+            .map(|x| x
+                .clone()
+                .iter()
+                .map(|y| y.to_tile())
+                .collect::<Vec<Tile>>()
+            )
+            .collect::<Vec<Vec<Tile>>>();
+        let sample = RaggedTopoArray2D::new(initial_vec, false);
+        let mut model = AdjacentModel::new();
+
+        // Act
+        model.add_sample_simple::<GridTopology>(&sample).unwrap();
+
+        // Assert
+        let directions = model.directions.unwrap();
+        assert_directions(&directions);
+        model.directions = Some(directions);
+        let star = TileId(4);
+        let underscore = TileId(0);
+
+        assert_eq!(model.tiles_to_patterns.len(), 2);
+        assert_eq!(model.tiles_to_patterns.get(&star), Some(&1)); // '*'
+        assert_eq!(model.tiles_to_patterns.get(&underscore), Some(&0)); // '_'
+
+        assert_eq!(model.frequencies.len(), 2);
+        assert_eq!(model.frequencies[0], 8.0); // '_'
+        assert_eq!(model.frequencies[1], 1.0); // '*'
+
+        assert_eq!(model.propagator.len(), 2);
+        assert_eq!(model.propagator[0].len(), 4);
+        assert_eq!(model.propagator[0][0].len(), 2);
+        assert_eq!(model.propagator[0][0].get(&0), Some(&0));
+        assert_eq!(model.propagator[0][0].get(&1), Some(&1));
+        assert_eq!(model.propagator[0][1].len(), 2);
+        assert_eq!(model.propagator[0][1].get(&0), Some(&0));
+        assert_eq!(model.propagator[0][1].get(&1), Some(&1));
+        assert_eq!(model.propagator[0][2].len(), 2);
+        assert_eq!(model.propagator[0][2].get(&0), Some(&0));
+        assert_eq!(model.propagator[0][2].get(&1), Some(&1));
+        assert_eq!(model.propagator[0][3].len(), 2);
+        assert_eq!(model.propagator[0][3].get(&0), Some(&0));
+        assert_eq!(model.propagator[0][3].get(&1), Some(&1));
+
+        assert_eq!(model.propagator[1].len(), 4);
+        assert_eq!(model.propagator[1][0].len(), 1);
+        assert_eq!(model.propagator[1][0].get(&0), Some(&0));
+        assert_eq!(model.propagator[1][1].len(), 1);
+        assert_eq!(model.propagator[1][1].get(&0), Some(&0));
+        assert_eq!(model.propagator[1][2].len(), 1);
+        assert_eq!(model.propagator[1][2].get(&0), Some(&0));
+        assert_eq!(model.propagator[1][3].len(), 1);
+        assert_eq!(model.propagator[1][3].get(&0), Some(&0));
+    }
+
+    fn assert_directions(directions: &DirectionSet) {
+        assert_eq!(directions.count(), 4);
+        assert_eq!(directions.dx().len(), 4);
+        assert_eq!(directions.dx()[0], 1);
+        assert_eq!(directions.dx()[1], -1);
+        assert_eq!(directions.dx()[2], 0);
+        assert_eq!(directions.dx()[3], 0);
+
+        assert_eq!(directions.dy().len(), 4);
+        assert_eq!(directions.dy()[0], 0);
+        assert_eq!(directions.dy()[1], 0);
+        assert_eq!(directions.dy()[2], 1);
+        assert_eq!(directions.dy()[3], -1);
+
+        assert_eq!(directions.dz().len(), 4);
+        assert_eq!(directions.dz()[0], 0);
+        assert_eq!(directions.dz()[1], 0);
+        assert_eq!(directions.dz()[2], 0);
+        assert_eq!(directions.dz()[3], 0);
+
+        assert_eq!(directions.direction_type(), Cartesian2d);
+    }
+
+    fn to_tiles(initial_data: &Vec<Vec<char>>) -> Vec<Vec<Tile>> {
+        initial_data
+            .into_iter()
+            .map(|x| x
+                .clone()
+                .iter()
+                .map(|y| y.to_tile())
+                .collect::<Vec<Tile>>()
+            )
+            .collect::<Vec<Vec<Tile>>>()
+    }
+
+    #[test]
+    fn test_frequencies() {
+        // Arrange
+        let initial_data = vec![
+            vec!['_', '+'],
+            vec!['_', '*'],
+        ];
+        let initial_vec = to_tiles(&initial_data);
+        let sample = RaggedTopoArray2D::new(initial_vec, false);
+        let mut model = AdjacentModel::new();
+
+        // Act
+        model.add_sample_simple::<GridTopology>(&sample).unwrap();
+
+        // Assert
+        assert_eq!(model.frequencies.len(), 3);
+        assert_eq!(model.frequencies[0], 2.0);
+        assert_eq!(model.frequencies[1], 1.0);
+        assert_eq!(model.frequencies[2], 1.0);
+    }
+
+    #[test]
+    fn test_tiles_to_patterns() {
+        // Arrange
+        let initial_data = vec![
+            vec!['_', '+'],
+            vec!['_', '*'],
+        ];
+        let initial_vec = to_tiles(&initial_data);
+        let sample = RaggedTopoArray2D::new(initial_vec, false);
+        let mut model = AdjacentModel::new();
+
+        // Act
+        model.add_sample_simple::<GridTopology>(&sample).unwrap();
+
+        // Assert
+        assert_eq!(model.tiles_to_patterns.len(), 3);
+        let underscore = TileId(0);
+        let plus = TileId(1);
+        let star = TileId(3);
+        assert_eq!(model.tiles_to_patterns.get(&star), Some(&2)); // '*'
+        assert_eq!(model.tiles_to_patterns.get(&plus), Some(&1)); // '+'
+        assert_eq!(model.tiles_to_patterns.get(&underscore), Some(&0)); // '_'
     }
 }

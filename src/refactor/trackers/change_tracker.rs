@@ -2,13 +2,11 @@ use std::cell::RefCell;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::rc::Rc;
-use crate::context::{Context, TileModelMappingId};
-use crate::models::tile_model_mapping::TileModelMapping;
-use crate::topology::topology::{Topology, TopologyError};
-use crate::trackers::tracker::Tracker;
+use crate::refactor::models::tile_model_mapping::TileModelMapping;
+use crate::refactor::topology::topology::{Topology, TopologyError};
+use crate::refactor::trackers::tracker::Tracker;
 
 pub struct ChangeTracker<T: Topology + Clone> {
-    tile_model_mapping: TileModelMappingId,
     index_count: usize,
     // Using pattern topology
     changed_indices: Vec<usize>,
@@ -26,13 +24,12 @@ impl<T: Topology + Clone> Debug for ChangeTracker<T> {
 }
 
 impl<T: Topology + Clone> ChangeTracker<T> {
-    pub fn new(tile_model_mapping: TileModelMappingId, index_count: usize) -> Self {
-        Self::with_index_count(tile_model_mapping, index_count)
+    pub fn new(index_count: usize) -> Self {
+        Self::with_index_count(index_count)
     }
 
-    pub fn with_index_count(tile_model_mapping: TileModelMappingId, index_count: usize) -> Self {
+    pub fn with_index_count(index_count: usize) -> Self {
         Self {
-            tile_model_mapping,
             index_count,
             changed_indices: Vec::new(),
             changed_indices2: Vec::new(),
@@ -47,45 +44,41 @@ impl<T: Topology + Clone> ChangeTracker<T> {
     }
 
     /// Returns the set of indices that have been changed since the last call.
-    pub fn get_changed_indices(&mut self, ctx: &Context<T>) -> Result<Vec<usize>, TopologyError> {
-        let current_changed_indices = std::mem::take(&mut self.changed_indices);
-
-        // Switch over double buffering
-        std::mem::swap(&mut self.changed_indices, &mut self.changed_indices2);
-        self.changed_indices.clear();
-        self.generation += 1;
-
-        if self.generation == i32::MAX {
-            return Err(TopologyError::Other(
-                format!("Change Tracker doesn't support more than {} executions", i32::MAX)
-            ));
-        }
-
-        let tile_model_mapping = self.get_tile_model_mapping(ctx);
-        if tile_model_mapping.borrow().pattern_coord_to_tile_coord_index_and_offset.is_none() {
-            Ok(current_changed_indices)
-        } else {
-            // Handle the overlapped case
-            let whatever = tile_model_mapping.borrow();
-            let mapping = whatever.pattern_coord_to_tile_coord_index_and_offset
-                .as_ref().ok_or(TopologyError::Other("unable to get mapping".to_string()))?;
-            let mut result = Vec::new();
-
-            for i in current_changed_indices {
-                if let Ok(coord_data) = mapping.get_index(ctx, i) {
-                    for (_, tile_index, _) in coord_data {
-                        result.push(*tile_index as usize);
-                    }
-                }
-            }
-
-            Ok(result)
-        }
-    }
-
-    fn get_tile_model_mapping(&self, ctx: &Context<T>) -> Rc<RefCell<TileModelMapping<T>>> {
-        // Something would have to have gone terribly wrong if this unwrap panics, so it's important that it does.
-        ctx.tile_model_mappings().get(self.tile_model_mapping).unwrap().clone()
+    pub fn get_changed_indices(&mut self) -> Result<Vec<usize>, TopologyError> {
+        // let current_changed_indices = std::mem::take(&mut self.changed_indices);
+        // 
+        // // Switch over double buffering
+        // std::mem::swap(&mut self.changed_indices, &mut self.changed_indices2);
+        // self.changed_indices.clear();
+        // self.generation += 1;
+        // 
+        // if self.generation == i32::MAX {
+        //     return Err(TopologyError::Other(
+        //         format!("Change Tracker doesn't support more than {} executions", i32::MAX)
+        //     ));
+        // }
+        // 
+        // let tile_model_mapping = self.get_tile_model_mapping(ctx);
+        // if tile_model_mapping.borrow().pattern_coord_to_tile_coord_index_and_offset.is_none() {
+        //     Ok(current_changed_indices)
+        // } else {
+        //     // Handle the overlapped case
+        //     let whatever = tile_model_mapping.borrow();
+        //     let mapping = whatever.pattern_coord_to_tile_coord_index_and_offset
+        //         .as_ref().ok_or(TopologyError::Other("unable to get mapping".to_string()))?;
+        //     let mut result = Vec::new();
+        // 
+        //     for i in current_changed_indices {
+        //         if let Ok(coord_data) = mapping.get_index(ctx, i) {
+        //             for (_, tile_index, _) in coord_data {
+        //                 result.push(*tile_index as usize);
+        //             }
+        //         }
+        //     }
+        // 
+        //     Ok(result)
+        // }
+        Err(TopologyError::Other("ChangeTracker not yet implemented".to_string()))
     }
 }
 

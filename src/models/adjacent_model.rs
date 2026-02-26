@@ -409,8 +409,8 @@ impl AdjacentModel {
         }
 
         Ok(())
-    }
-
+    } // 1, 2, 3, 2, 1, 4, 3
+// 1, 2, 3, 2, 1, 4, 3, 4, 1,
     fn get_pattern(&mut self, ctx: &Context<GridTopology>, tile: TileId) -> usize {
         let direction_count = self.directions.as_ref().map(|d| d.count()).unwrap_or(4); // Default fallback
 
@@ -428,6 +428,9 @@ impl AdjacentModel {
 
         pattern
     }
+
+    // 0, 1, 2, 1, 0, 3, 2, 3, 0,
+    // 0, 1, 2, 1, 0, 3, 2, 3, 0, 3, 2, 1,
 
     /// Checks if the given tile is in the tiles_to_patterns mapping. If so, returns the TileId.
     /// In the C# package a Tile could be used as a Key in a HashMap, and it would compare by the
@@ -571,5 +574,176 @@ impl AdjacentModel {
                 }
             }
         }
+    }
+}
+
+
+mod tests {
+    use crate::topology::direction::DirectionSetType::Cartesian2d;
+    use crate::tile::{Tile, ToTile};
+    use crate::topology::ragged_topology_array_2d::RaggedTopoArray2D;
+    use super::*;
+
+    #[test]
+    fn test_adjacent_model() {
+        // Arrange
+        let ctx: Context<GridTopology> = Context::new();
+
+        let initial_data = vec![
+            vec!['_', '_', '_'],
+            vec!['_', '*', '_'],
+            vec!['_', '_', '_'],
+        ];
+        let initial_vec = initial_data
+            .into_iter()
+            .map(|x| x
+                .clone()
+                .iter()
+                .map(|y| y.to_tile())
+                .collect::<Vec<Tile>>()
+            )
+            .collect::<Vec<Vec<Tile>>>();
+        let initial_vec = ctx.tiles().add_vec_2d(initial_vec);
+        let underscore = initial_vec[0][0].clone();
+        let star = initial_vec[1][1].clone();
+        let sample = RaggedTopoArray2D::new(&ctx, initial_vec, false);
+        let mut model = AdjacentModel::new();
+
+        // Act
+        model.add_sample_simple(&ctx, &sample).unwrap();
+
+        // Assert
+        let directions = model.directions.unwrap();
+        assert_directions(&directions);
+        model.directions = Some(directions);
+
+        assert_eq!(model.tiles_to_patterns.len(), 2);
+        assert_eq!(model.tiles_to_patterns.get(&star), Some(&1)); // '*'
+        assert_eq!(model.tiles_to_patterns.get(&underscore), Some(&0)); // '_'
+
+        assert_eq!(model.frequencies.len(), 2);
+        assert_eq!(model.frequencies[0], 8.0); // '_'
+        assert_eq!(model.frequencies[1], 1.0); // '*'
+
+        assert_eq!(model.propagator.len(), 2);
+        assert_eq!(model.propagator[0].len(), 4);
+        assert_eq!(model.propagator[0][0].len(), 2);
+        assert_eq!(model.propagator[0][0].get(&0), Some(&0));
+        assert_eq!(model.propagator[0][0].get(&1), Some(&1));
+        assert_eq!(model.propagator[0][1].len(), 2);
+        assert_eq!(model.propagator[0][1].get(&0), Some(&0));
+        assert_eq!(model.propagator[0][1].get(&1), Some(&1));
+        assert_eq!(model.propagator[0][2].len(), 2);
+        assert_eq!(model.propagator[0][2].get(&0), Some(&0));
+        assert_eq!(model.propagator[0][2].get(&1), Some(&1));
+        assert_eq!(model.propagator[0][3].len(), 2);
+        assert_eq!(model.propagator[0][3].get(&0), Some(&0));
+        assert_eq!(model.propagator[0][3].get(&1), Some(&1));
+
+        assert_eq!(model.propagator[1].len(), 4);
+        assert_eq!(model.propagator[1][0].len(), 1);
+        assert_eq!(model.propagator[1][0].get(&0), Some(&0));
+        assert_eq!(model.propagator[1][1].len(), 1);
+        assert_eq!(model.propagator[1][1].get(&0), Some(&0));
+        assert_eq!(model.propagator[1][2].len(), 1);
+        assert_eq!(model.propagator[1][2].get(&0), Some(&0));
+        assert_eq!(model.propagator[1][3].len(), 1);
+        assert_eq!(model.propagator[1][3].get(&0), Some(&0));
+    }
+
+    fn assert_directions(directions: &DirectionSet) {
+        assert_eq!(directions.count(), 4);
+        assert_eq!(directions.dx().len(), 4);
+        assert_eq!(directions.dx()[0], 1);
+        assert_eq!(directions.dx()[1], -1);
+        assert_eq!(directions.dx()[2], 0);
+        assert_eq!(directions.dx()[3], 0);
+
+        assert_eq!(directions.dy().len(), 4);
+        assert_eq!(directions.dy()[0], 0);
+        assert_eq!(directions.dy()[1], 0);
+        assert_eq!(directions.dy()[2], 1);
+        assert_eq!(directions.dy()[3], -1);
+
+        assert_eq!(directions.dz().len(), 4);
+        assert_eq!(directions.dz()[0], 0);
+        assert_eq!(directions.dz()[1], 0);
+        assert_eq!(directions.dz()[2], 0);
+        assert_eq!(directions.dz()[3], 0);
+
+        assert_eq!(directions.direction_type(), Cartesian2d);
+    }
+
+    fn to_tiles(initial_data: &Vec<Vec<char>>) -> Vec<Vec<Tile>> {
+        initial_data
+            .into_iter()
+            .map(|x| x
+                .clone()
+                .iter()
+                .map(|y| y.to_tile())
+                .collect::<Vec<Tile>>()
+            )
+            .collect::<Vec<Vec<Tile>>>()
+    }
+
+    #[test]
+    fn test_frequencies() {
+        // Arrange
+        let ctx: Context<GridTopology> = Context::new();
+
+        let initial_data = vec![
+            vec!['_', '+'],
+            vec!['_', '*'],
+        ];
+        let initial_vec = initial_data
+            .into_iter()
+            .map(|x| x
+                .clone()
+                .iter()
+                .map(|y| y.to_tile())
+                .collect::<Vec<Tile>>()
+            )
+            .collect::<Vec<Vec<Tile>>>();
+        let initial_vec = ctx.tiles().add_vec_2d(initial_vec);
+        let underscore = initial_vec[0][0].clone();
+        let star = initial_vec[1][1].clone();
+        let sample = RaggedTopoArray2D::new(&ctx, initial_vec, false);
+        let mut model = AdjacentModel::new();
+
+        // Act
+        model.add_sample_simple(&ctx, &sample).unwrap();
+
+        // Assert
+        assert_eq!(model.frequencies.len(), 3);
+        assert_eq!(model.frequencies[0], 2.0);
+        assert_eq!(model.frequencies[1], 1.0);
+        assert_eq!(model.frequencies[2], 1.0);
+    }
+
+    #[test]
+    fn test_tiles_to_patterns() {
+        // Arrange
+        let ctx: Context<GridTopology> = Context::new();
+
+        let initial_data = vec![
+            vec!['_', '+'],
+            vec!['_', '*'],
+        ];
+        let initial_vec = to_tiles(&initial_data);
+        let initial_vec = ctx.tiles().add_vec_2d(initial_vec);
+        let underscore = initial_vec[0][0].clone();
+        let plus = initial_vec[0][1].clone();
+        let star = initial_vec[1][1].clone();
+        let sample = RaggedTopoArray2D::new(&ctx, initial_vec, false);
+        let mut model = AdjacentModel::new();
+
+        // Act
+        model.add_sample_simple(&ctx, &sample).unwrap();
+
+        // Assert
+        assert_eq!(model.tiles_to_patterns.len(), 3);
+        assert_eq!(model.tiles_to_patterns.get(&star), Some(&2)); // '*'
+        assert_eq!(model.tiles_to_patterns.get(&plus), Some(&1)); // '*'
+        assert_eq!(model.tiles_to_patterns.get(&underscore), Some(&0)); // '_'
     }
 }

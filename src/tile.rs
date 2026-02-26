@@ -4,11 +4,14 @@ use std::hash::Hasher;
 use image::{Pixel, Rgba, RgbaImage};
 use serde_derive::{Deserialize, Serialize};
 
+static mut COUNTER: usize = 0; // TODO: Remove
+
 /// Thin wrapper around a value of any type. This is primarily what the library takes in and puts out.
 #[derive(Clone, Debug, Default)]
 pub struct Tile {
     name: String, // TODO: Consider removing this.
     value: TileVisual,
+    tracking_number: usize, // TODO: Remove this.
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Default)]
@@ -94,9 +97,12 @@ impl TileVisual {
 impl Tile {
     pub fn new(name: String, value: TileVisual) -> Self
     {
+        let tracking_number = unsafe { COUNTER };
+        unsafe { COUNTER += 1; }
         Self {
             name,
             value,
+            tracking_number,
         }
     }
 

@@ -14,8 +14,6 @@ pub struct EntropyTracker {
     plogp: Vec<f64>,
     mask: Option<Vec<bool>>,
     indices: usize,
-    wave: Option<WaveId>,
-    self_ref: Option<TrackerId>,
 }
 
 impl EntropyTracker {
@@ -27,18 +25,15 @@ impl EntropyTracker {
             plogp: Vec::new(),
             mask: None,
             indices: 0,
-            wave: None,
-            self_ref: None,
         }
     }
 
     // For debugging
-    pub fn init_debug<T: Topology + Clone>(&mut self, ctx: &Context<T>, wave: WaveId, frequencies: Vec<f64>, mask: Option<Vec<bool>>) -> Result<(), String> {
+    pub fn init_debug<T: Topology + Clone>(&mut self, wave: &Wave, frequencies: Vec<f64>, mask: Option<Vec<bool>>) -> Result<(), String> {
         self.frequencies = frequencies;
         self.pattern_count = self.frequencies.len();
         self.mask = mask;
-        self.wave = Some(wave);
-        self.indices = ctx.wave().get(wave).clone().ok_or("unable to get wave")?.borrow().indices();
+        self.indices = wave.indices();
 
         // Initialize plogp
         self.plogp = vec![0.0; self.pattern_count];
@@ -53,93 +48,78 @@ impl EntropyTracker {
 
         Ok(())
     }
-
-    pub fn set_self_ref(&mut self, self_ref: TrackerId) {
-        if self.self_ref.is_some() {
-            println!("EntropyTracker::set_self_ref already set! Ignoring");
-            return
-        }
-        self.self_ref = Some(self_ref);
-    }
-
-    fn get_wave<T: Topology + Clone>(&self, ctx: &Context<T>) -> Rc<RefCell<Wave>> {
-        ctx
-            .wave()
-            .get(self.wave.unwrap()) // There is a logic error if this is None
-            .unwrap()
-    }
 }
 
 impl<T: Topology + Clone> IndexPicker<T> for EntropyTracker {
-    fn init(&mut self, ctx: &Context<T>, wave_propagator: &mut WavePropagator<T>) -> Result<(), String> {
-        if self.self_ref.is_none() {
-            panic!("EntropyTracker has no self ref!")
-        }
-        {
-            let topology_ref: Rc<RefCell<T>> = ctx.topologies().get(wave_propagator.topology.clone()).ok_or("unable to get topology")?.clone();
-            let topology = topology_ref.borrow();
-            self.init_debug(
-                ctx,
-                wave_propagator.get_wave_id().ok_or("unable to get wave id")?,
-                wave_propagator.get_frequencies(),
-                topology.mask(),
-            )?
-        }
-        wave_propagator.add_tracker(self.self_ref.clone().ok_or("unable to get self ref")?);
-        Ok(())
+    fn init(&mut self, wave_propagator: &mut WavePropagator<T>) -> Result<(), String> {
+        Err("NYI".to_string())
+        // {
+        //     let topology_ref: Rc<RefCell<T>> = ctx.topologies().get(wave_propagator.topology().clone()).ok_or("unable to get topology")?.clone();
+        //     let topology = topology_ref.borrow();
+        //     let topology = wave_propagator.topology();
+        //     self.init_debug(
+        //         ctx,
+        //         wave_propagator.get_wave_id().ok_or("unable to get wave id")?,
+        //         wave_propagator.get_frequencies(),
+        //         topology.mask(),
+        //     )?
+        // }
+        // wave_propagator.add_tracker(self.self_ref.clone().ok_or("unable to get self ref")?);
+        // Ok(())
     }
 
-    fn get_random_index(&mut self, ctx: &Context<T>, random_double: Rc<dyn Fn() -> f64>) -> Option<i32> {
-        let mut selected_index = -1i32;
-        let mut min_entropy = f64::INFINITY;
-        let mut count_at_min_entropy = 0;
-
-        let wave = self.get_wave(ctx);
-
-        for i in 0..self.indices {
-            if let Some(ref mask) = self.mask {
-                if !mask[i] {
-                    continue;
-                }
-            }
-
-            let c = wave.borrow().get_pattern_count(i);
-            let e = self.entropy_values[i].entropy;
-
-            if c <= 1 {
-                continue;
-            } else if e < min_entropy {
-                count_at_min_entropy = 1;
-                min_entropy = e;
-            } else if e == min_entropy {
-                count_at_min_entropy += 1;
-            }
-        }
-
-        let mut n = (count_at_min_entropy as f64 * random_double()) as i32;
-
-        for i in 0..self.indices {
-            if let Some(ref mask) = self.mask {
-                if !mask[i] {
-                    continue;
-                }
-            }
-
-            let c = wave.borrow().get_pattern_count(i);
-            let e = self.entropy_values[i].entropy;
-
-            if c <= 1 {
-                continue;
-            } else if e == min_entropy {
-                if n == 0 {
-                    selected_index = i as i32;
-                    break;
-                }
-                n -= 1;
-            }
-        }
-
-        Some(selected_index)
+    fn get_random_index(&mut self, random_double: Rc<dyn Fn() -> f64>) -> Option<i32> {
+        None
+        // let mut selected_index = -1i32;
+        // let mut min_entropy = f64::INFINITY;
+        // let mut count_at_min_entropy = 0;
+        //
+        // let wave = self.get_wave(ctx);
+        //
+        // for i in 0..self.indices {
+        //     if let Some(ref mask) = self.mask {
+        //         if !mask[i] {
+        //             continue;
+        //         }
+        //     }
+        //
+        //     let c = wave.borrow().get_pattern_count(i);
+        //     let e = self.entropy_values[i].entropy;
+        //
+        //     if c <= 1 {
+        //         continue;
+        //     } else if e < min_entropy {
+        //         count_at_min_entropy = 1;
+        //         min_entropy = e;
+        //     } else if e == min_entropy {
+        //         count_at_min_entropy += 1;
+        //     }
+        // }
+        //
+        // let mut n = (count_at_min_entropy as f64 * random_double()) as i32;
+        //
+        // for i in 0..self.indices {
+        //     if let Some(ref mask) = self.mask {
+        //         if !mask[i] {
+        //             continue;
+        //         }
+        //     }
+        //
+        //     let c = wave.borrow().get_pattern_count(i);
+        //     let e = self.entropy_values[i].entropy;
+        //
+        //     if c <= 1 {
+        //         continue;
+        //     } else if e == min_entropy {
+        //         if n == 0 {
+        //             selected_index = i as i32;
+        //             break;
+        //         }
+        //         n -= 1;
+        //     }
+        // }
+        //
+        // Some(selected_index)
     }
 
     // fn set_self_ref(&mut self, self_ref: TrackerId) {
@@ -197,7 +177,7 @@ impl<T: Topology + Clone> PatternPicker<T> for EntropyTracker {
         unimplemented!("EntropyTracker is not a PatternPicker")
     }
 
-    fn get_random_possible_pattern_at(&mut self, ctx: &Context<T>, index: usize, random_double: Rc<dyn Fn() -> f64>) -> Option<usize> {
+    fn get_random_possible_pattern_at(&mut self, index: usize, random_double: Rc<dyn Fn() -> f64>) -> Option<usize> {
         unimplemented!("EntropyTracker is not a PatternPicker")
     }
 
@@ -211,18 +191,6 @@ impl<T: Topology + Clone> PatternPicker<T> for EntropyTracker {
 }
 
 impl<T: Topology + Clone> SuperTracker<T> for EntropyTracker {
-    fn set_self_ref(&mut self, self_ref: TrackerId) {
-        self.self_ref = Some(self_ref);
-    }
-
-    fn add_self(self, ctx: &Context<T>) -> TrackerId {
-        let id = ctx.index_pickers().add(Rc::new(RefCell::new(self)));
-        let me = ctx.index_pickers().get(id).unwrap(); // This is safe because we just added it.
-        me.borrow_mut().set_self_ref(id);
-
-        id
-    }
-
     fn is_index_picker(&self) -> bool {
         true
     }

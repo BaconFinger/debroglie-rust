@@ -86,10 +86,8 @@ where T: Topology + Clone + 'static
         topology: T,
         options: TilePropagatorOptions<i32, T>,
     ) -> Result<Self, String> {
+        // panic!("with_options not implemented");
         let tile_model_mapping = tile_model.get_tile_model_mapping(&topology)?;
-        let pattern_topology = tile_model_mapping.pattern_topology.as_ref()
-            .ok_or("Pattern topology is required")?
-            .clone();
         let pattern_model = tile_model_mapping.pattern_model.clone();
 
         // WavePropagator
@@ -110,7 +108,7 @@ where T: Topology + Clone + 'static
 
         let wave_propagator = WavePropagator::new(
             pattern_model,
-            pattern_topology.clone(),
+            &topology,
             wave_propagator_options,
         )?;
 
@@ -276,7 +274,7 @@ where T: Topology + Clone + 'static
         ))
     }
 
-    fn convert_constraints(constraints: &Vec<Box<dyn TileConstraint<T>>>) -> Result<Vec<Box<WaveConstraint>>, String> {
+    fn convert_constraints(constraints: &Vec<Box<dyn TileConstraint<T>>>) -> Result<Vec<WaveConstraint>, String> {
         // println!("Have {} constraints", constraints.len());
         return Ok(Vec::new());
         todo!("convert constraints");
@@ -322,27 +320,28 @@ where T: Topology + Clone + 'static
 
     /// Gets the value of a Tile that has been decided at a given index with defaults.
     pub fn get_value_with_defaults(&self, index: usize) -> Option<TileVisual> {
-        let (pattern_index, o) = self.tile_model_mapping
-            .get_tile_coord_to_pattern_coord_by_index(&self.topology, index);
-        let pattern = self.wave_propagator.get_decided_pattern(pattern_index)?;
-
-        match pattern as i8 {
-            -1 => None, // Resolution::Undecided
-            -2 => None, // Resolution::Contradiction
-            _ => {
-                if let Some(patterns_to_tiles) = self.tile_model_mapping.patterns_to_tiles_by_offset.get(&o) {
-                    if let Some(tile) = patterns_to_tiles.get(&(pattern as usize)) {
-                        let tile_ref = self.get_tile(tile.clone())?;
-                        let tile = tile_ref.borrow();
-                        Some(tile.get_value().clone())
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            }
-        }
+        panic!("NYI");
+        // let (pattern_index, o) = self.tile_model_mapping
+        //     .get_tile_coord_to_pattern_coord_by_index(&self.topology, index);
+        // let pattern = self.wave_propagator.get_decided_pattern(pattern_index)?;
+        //
+        // match pattern as i8 {
+        //     -1 => None, // Resolution::Undecided
+        //     -2 => None, // Resolution::Contradiction
+        //     _ => {
+        //         if let Some(patterns_to_tiles) = self.tile_model_mapping.patterns_to_tiles_by_offset.get(&o) {
+        //             if let Some(tile) = patterns_to_tiles.get(&(pattern as usize)) {
+        //                 let tile_ref = self.get_tile(tile.clone())?;
+        //                 let tile = tile_ref.borrow();
+        //                 Some(tile.get_value().clone())
+        //             } else {
+        //                 None
+        //             }
+        //         } else {
+        //             None
+        //         }
+        //     }
+        // }
     }
 }
 
@@ -360,7 +359,31 @@ impl<T> DummyTopoArray<T> {
 }
 
 impl<T: Clone, TopoT: Topology + Clone> TopoArray<T, TopoT> for DummyTopoArray<T> {
-    fn get_index(&self, topology: &TopoT, index: usize) -> Result<&T, TopologyError> {
+    fn topology(&self) -> Option<&TopoT> {
+        todo!()
+    }
+
+    fn get_coord(&self, x: usize, y: usize, z: usize) -> Result<&T, TopologyError> {
+        todo!()
+    }
+
+    fn get_index(&self, index: usize) -> Result<&T, TopologyError> {
+        todo!()
+    }
+
+    fn get_value_from_index(&self, index: usize) -> Option<&T> {
+        todo!()
+    }
+
+    fn get_value_from_coord(&self, x: usize, y: usize, z: usize) -> Option<&T> {
+        todo!()
+    }
+
+    fn get_id_from_index(&self, index: usize) -> Option<usize> {
+        todo!()
+    }
+
+    fn get_id_from_coord(&self, x: usize, y: usize, z: usize) -> Option<usize> {
         todo!()
     }
 }

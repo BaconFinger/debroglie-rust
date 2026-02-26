@@ -1,8 +1,7 @@
 use std::any::Any;
 use std::fmt;
-use crate::context::TopologyId;
-use crate::topology::direction::{Direction, EdgeLabel};
-use crate::topology::grid_topology::GridTopology;
+use crate::refactor::topology::direction::{Direction, EdgeLabel};
+use crate::refactor::topology::grid_topology::GridTopology;
 
 /// Error types for topology operations
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -200,9 +199,6 @@ pub trait Topology {
     fn as_any(&self) -> &dyn Any;
 
     // fn get_indices
-    fn get_key(&self) -> Option<TopologyId>;
-
-    fn set_key(&mut self, key: TopologyId);
 }
 
 // TODO: Uncomment
