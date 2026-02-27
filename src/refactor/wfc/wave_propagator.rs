@@ -4,6 +4,8 @@ use std::marker::PhantomData;
 use std::ops::Index;
 use std::rc::Rc;
 use std::time::{Instant};
+use image::imageops::tile;
+use crate::refactor::models::tile_model_mapping::TileModelMapping;
 use crate::refactor::resolution::Resolution;
 use crate::refactor::tile_propagator::TilePropagatorState;
 use crate::refactor::topology::topology::Topology;
@@ -126,7 +128,7 @@ impl<T> WavePropagatorState<T> where T: Topology + Clone {
     }
 
     pub fn get_wave(&self) -> &Option<Wave> {
-        &self.wave
+        &self.wave // TODO: Refactor to return &self.wave.as_ref()?
     }
 }
 
@@ -215,10 +217,10 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
     }
 
     /// Repeatedly step until the status is Decided or Contradiction
-    pub fn run(&mut self) -> Result<Resolution, String> {
+    pub fn run(&mut self, tile_model_mapping: &TileModelMapping<T>) -> Result<Resolution, String> {
         let now = Instant::now();
         loop {
-            let status = self.step()?;
+            let status = self.step(tile_model_mapping)?;
             if status != Resolution::Undecided {
                 return Ok(status);
             }
@@ -300,7 +302,7 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
         Ok(())
     }
 
-    pub fn step(&mut self) -> Result<Resolution, String> {
+    pub fn step(&mut self, tile_model_mapping: &TileModelMapping<T>) -> Result<Resolution, String> {
         // println!("wave_propagator.step");
         // Check if we need to step constraints
         if self.deferred_constraints_step {
@@ -316,8 +318,7 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
         let (index, pattern) = {
             // Pick an index to use
             let index = {
-                let random_fn = self.state.random_double.clone();
-                self.index_picker.get_random_index(random_fn)
+                self.index_picker.get_random_index(&self.state, tile_model_mapping)
                     .ok_or("unable to get random index from pattern picker")?
             };
 
@@ -462,6 +463,12 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
         // Update trackers
         for tracker in &mut self.trackers {
             tracker.do_ban(index, pattern);
+        }
+        if self.index_picker.as_super_tracker().is_some() {
+            self.index_picker.as_super_tracker_mut().unwrap().do_ban(index, pattern); // Safe because checked above
+        }
+        if self.pattern_picker.as_super_tracker().is_some() {
+            self.pattern_picker.as_super_tracker_mut().unwrap().do_ban(index, pattern); // Safe because checked above
         }
 
         Some(is_contradiction)
@@ -630,6 +637,12 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
             // Update trackers
             for tracker in &mut self.trackers {
                 tracker.do_ban(index, pattern);
+            }
+            if self.index_picker.as_super_tracker().is_some() {
+                self.index_picker.as_super_tracker_mut().unwrap().do_ban(index, pattern); // Safe because checked above
+            }
+            if self.pattern_picker.as_super_tracker().is_some() {
+                self.pattern_picker.as_super_tracker_mut().unwrap().do_ban(index, pattern); // Safe because checked above
             }
         }
 

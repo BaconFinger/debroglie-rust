@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::rc::Rc;
+use crate::refactor::models::tile_model_mapping::TileModelMapping;
 use crate::refactor::topology::topology::Topology;
 use crate::refactor::trackers::index_picker::IndexPicker;
 use crate::refactor::trackers::pattern_picker::PatternPicker;
@@ -30,6 +31,7 @@ impl<T: Topology + Clone> PatternPicker<T> for WeightedRandomPatternPicker<T> {
     }
 
     fn get_random_possible_pattern_at(&mut self, index: usize, random_double: Rc<dyn Fn() -> f64>) -> Option<usize> {
+        println!("WeightedRandomPatternPicker::get_random_possible_pattern_at, fix!!");
         None
         // if self.wave.is_none() {
         //     println!("No wave set for WeightedRandomPatternPicker");
@@ -52,17 +54,13 @@ impl<T: Topology + Clone> PatternPicker<T> for WeightedRandomPatternPicker<T> {
         // }
     }
 
-    // fn set_self_ref(&mut self, self_ref: TrackerId) {
-    //     self.self_ref = Some(self_ref);
-    // }
-    //
-    // fn add_self(self, ctx: &Context<T>) -> TrackerId {
-    //     let id = ctx.pattern_pickers().add(Rc::new(RefCell::new(self)));
-    //     let me = ctx.pattern_pickers().get(id).unwrap();
-    //     me.borrow_mut().set_self_ref(id);
-    //
-    //     id
-    // }
+    fn as_super_tracker(&self) -> Option<&dyn SuperTracker<T>> {
+        Some(self as &dyn SuperTracker<T>)
+    }
+
+    fn as_super_tracker_mut(&mut self) -> Option<&mut dyn SuperTracker<T>> {
+        Some(self as &mut dyn SuperTracker<T>)
+    }
 }
 
 impl<T: Topology + Clone> Tracker for WeightedRandomPatternPicker<T> {
@@ -84,17 +82,17 @@ impl<T: Topology + Clone> IndexPicker<T> for WeightedRandomPatternPicker<T> {
         unimplemented!("WeightedRandomPatternPicker is not an IndexPicker")
     }
 
-    fn get_random_index(&mut self, random_double: Rc<dyn Fn() -> f64>) -> Option<i32> {
+    fn get_random_index(&mut self, wave_propagator_state: &WavePropagatorState<T>, tile_model_mapping: &TileModelMapping<T>) -> Option<i32> {
         unimplemented!("WeightedRandomPatternPicker is not an IndexPicker")
     }
 
-    // fn set_self_ref(&mut self, self_ref: TrackerId) {
-    //     unimplemented!("WeightedRandomPatternPicker is not an IndexPicker")
-    // }
-    //
-    // fn add_self(self, ctx: &Context<T>) -> TrackerId {
-    //     unimplemented!("WeightedRandomPatternPicker is not an IndexPicker")
-    // }
+    fn as_super_tracker(&self) -> Option<&dyn SuperTracker<T>> {
+        Some(self as &dyn SuperTracker<T>)
+    }
+
+    fn as_super_tracker_mut(&mut self) -> Option<&mut dyn SuperTracker<T>> {
+        Some(self as &mut dyn SuperTracker<T>)
+    }
 }
 
 impl<T: Topology + Clone> SuperTracker<T> for WeightedRandomPatternPicker<T> {

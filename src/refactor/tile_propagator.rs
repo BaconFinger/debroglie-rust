@@ -318,7 +318,7 @@ where T: Topology + Clone + 'static
 
     /// Repeatedly Steps until the status is Decided or Contradiction.
     pub fn run(&mut self) -> Result<Resolution, String> {
-        self.wave_propagator.run()
+        self.wave_propagator.run(&self.state.tile_model_mapping)
     }
 
     /// Converts the generated results to an array of values.
@@ -419,8 +419,16 @@ impl<T: Topology + Clone, R: IndexPicker<T>> IndexPicker<T> for AsIndexPicker<T,
         self.0.borrow_mut().init(wave_propagator_state, topology)
     }
 
-    fn get_random_index(&mut self, random_double: Rc<dyn Fn() -> f64>) -> Option<i32> {
-        self.0.borrow_mut().get_random_index(random_double)
+    fn get_random_index(&mut self, wave_propagator_state: &WavePropagatorState<T>, tile_model_mapping: &TileModelMapping<T>) -> Option<i32> {
+        self.0.borrow_mut().get_random_index(wave_propagator_state, tile_model_mapping)
+    }
+
+    fn as_super_tracker(&self) -> Option<&dyn SuperTracker<T>> {
+        None
+    }
+
+    fn as_super_tracker_mut(&mut self) -> Option<&mut dyn SuperTracker<T>> {
+        None
     }
 }
 pub fn to_index_picker<T: Topology + Clone + 'static, R: IndexPicker<T> +'static>(index_picker: Rc<RefCell<R>>) -> Rc<RefCell<dyn IndexPicker<T>>> {
