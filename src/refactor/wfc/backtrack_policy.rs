@@ -82,7 +82,7 @@ impl<T: Topology + Clone + 'static> BacktrackPolicy<T> for PatienceBackjumpPolic
         let choice_observer = PatienceChoiceObserver {
             policy: self as *mut PatienceBackjumpPolicy<T>,
         };
-        wave_propagator.add_choice_observer(Box::new(choice_observer));
+        // wave_propagator.add_choice_observer(Box::new(choice_observer));
         self.counter = 0;
         self.depth = 0;
         self.max_depth = 0;

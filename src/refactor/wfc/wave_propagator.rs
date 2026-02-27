@@ -1,8 +1,11 @@
 use std::cell::RefCell;
 use std::collections::VecDeque;
+use std::marker::PhantomData;
+use std::ops::Index;
 use std::rc::Rc;
 use std::time::{Instant};
 use crate::refactor::resolution::Resolution;
+use crate::refactor::tile_propagator::TilePropagatorState;
 use crate::refactor::topology::topology::Topology;
 use crate::refactor::trackers::entropy_tracker::EntropyTracker;
 use crate::refactor::trackers::index_picker::IndexPicker;
@@ -46,14 +49,15 @@ pub enum ModelConstraintAlgorithm {
 }
 
 pub struct WavePropagator<T: Topology + Clone> {
+    state: WavePropagatorState<T>,
     // Main data tracking what we've decided so far
-    wave: Option<Wave>,
+    // wave: Option<Wave>,
 
     pattern_model_constraint: Box<dyn PatternModelConstraint<T>>,
 
     // From model
     pattern_count: usize,
-    frequencies: Vec<f64>,
+    // frequencies: Vec<f64>,
 
     // Used for backtracking
     backtrack_items: Option<VecDeque<IndexPatternItem>>,
@@ -68,13 +72,13 @@ pub struct WavePropagator<T: Topology + Clone> {
     backtrack: bool,
     max_backtrack_depth: i32,
     constraints: Vec<WaveConstraint>,
-    random_double: Rc<dyn Fn() -> f64>,
+    // random_double: Rc<dyn Fn() -> f64>,
 
     // Deferred constraints
     deferred_constraints_step: bool,
 
     // The overall status
-    status: Resolution,
+    // status: Resolution,
     contradiction_reason: Option<String>,
     contradiction_source: Option<String>,
 
@@ -83,7 +87,6 @@ pub struct WavePropagator<T: Topology + Clone> {
 
     trackers: Vec<Box<dyn SuperTracker<T>>>,
     choice_observers: Vec<Box<dyn ChoiceObserver>>,
-
     index_picker: Box<dyn IndexPicker<T>>,
     pattern_picker: Box<dyn PatternPicker<T>>,
     backtrack_policy: Option<Box<dyn BacktrackPolicy<T>>>,
@@ -101,17 +104,43 @@ pub struct WavePropagatorOptions<T: Topology + Clone> {
     pub model_constraint_algorithm: ModelConstraintAlgorithm,
 }
 
+pub struct WavePropagatorState<T: Topology + Clone> {
+    wave: Option<Wave>,
+    frequencies: Vec<f64>,
+    random_double: Rc<dyn Fn() -> f64>,
+    status: Resolution,
+
+    phantom_data: PhantomData<T>,
+}
+
+impl<T> WavePropagatorState<T> where T: Topology + Clone {
+    pub fn get_random_double(&self) -> Rc<dyn Fn() -> f64> {
+        self.random_double.clone()
+    }
+    pub fn get_frequencies(&self) -> Vec<f64> {
+        self.frequencies.clone()
+    }
+
+    pub fn status(&self) -> Resolution {
+        self.status
+    }
+
+    pub fn get_wave(&self) -> &Option<Wave> {
+        &self.wave
+    }
+}
+
 impl<T: Topology + Clone + 'static> WavePropagator<T> {
     pub fn new(
         model: PatternModel,
-        topology: &T,
         options: WavePropagatorOptions<T>,
+        tile_propagator_state: &TilePropagatorState<T>,
     ) -> Result<Self, String> {
         let pattern_count = model.pattern_count();
         let frequencies = model.frequencies().clone();
-        let index_count = topology.index_count();
+        let index_count = tile_propagator_state.get_topology().index_count();
         let backtrack = options.backtrack_policy.is_some();
-        let directions_count = topology.directions_count();
+        let directions_count = tile_propagator_state.get_topology().directions_count();
 
         let random_double = options.random_double.unwrap_or(Rc::new(|| {
             use std::collections::hash_map::DefaultHasher;
@@ -131,11 +160,20 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
             Box::new(WeightedRandomPatternPicker::new())
         });
 
-        let mut wave_propagator = Self {
+        let propagator_state = WavePropagatorState {
             wave: None,
+            frequencies,
+            random_double: random_double.clone(),
+            status: Resolution::Undecided,
+            phantom_data: PhantomData,
+        };
+
+        let mut wave_propagator = Self {
+            state: propagator_state,
+            // wave: None,
             pattern_model_constraint: Box::new(OneStepPatternModelConstraint),
             pattern_count,
-            frequencies,
+            // frequencies,
             backtrack_items: if backtrack { Some(VecDeque::new()) } else { None },
             backtrack_items_lengths: if backtrack { Some(VecDeque::new()) } else { None },
             prev_choices: if backtrack { Some(VecDeque::new()) } else { None },
@@ -146,13 +184,15 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
             backtrack,
             max_backtrack_depth: options.max_backtrack_depth,
             constraints: options.constraints.unwrap_or_else(Vec::new),
-            random_double,
+            // random_double,
             deferred_constraints_step: false,
-            status: Resolution::Undecided,
+            // status: Resolution::Undecided,
             contradiction_reason: None,
             contradiction_source: None,
             directions_count,
             trackers: Vec::new(),
+            // index_picker_trackers: Vec::new(),
+            // pattern_picker_trackers: Vec::new(),
             choice_observers: Vec::new(),
             index_picker,
             pattern_picker,
@@ -168,7 +208,7 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
 
         wave_propagator.pattern_model_constraint = pattern_model_constraint;
         if options.clear {
-            wave_propagator.clear()?;
+            wave_propagator.clear(tile_propagator_state)?;
         }
 
         Ok(wave_propagator)
@@ -185,75 +225,55 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
         }
     }
 
-    pub fn clear(&mut self) -> Result<Resolution, String> {
-        panic!("clear not implemented");
-        // let wave = Wave::new(self.pattern_count, self.index_count);
-        // self.wave = Some(wave);
-        //
-        // if self.backtrack {
-        //     self.backtrack_items = Some(VecDeque::new());
-        //     self.backtrack_items_lengths = Some(VecDeque::new());
-        //     if let Some(ref mut lengths) = self.backtrack_items_lengths {
-        //         lengths.push_back(0);
-        //     }
-        //     self.prev_choices = Some(VecDeque::new());
+    pub fn clear(&mut self, tile_propagator_state: &TilePropagatorState<T>) -> Result<Resolution, String> {
+        let wave = Wave::new(self.pattern_count, self.index_count);
+        self.state.wave = Some(wave);
+
+        if self.backtrack {
+            self.backtrack_items = Some(VecDeque::new());
+            self.backtrack_items_lengths = Some(VecDeque::new());
+            if let Some(ref mut lengths) = self.backtrack_items_lengths {
+                lengths.push_back(0);
+            }
+            self.prev_choices = Some(VecDeque::new());
+        }
+
+        self.state.status = Resolution::Undecided;
+        self.contradiction_reason = None;
+        self.contradiction_source = None;
+        self.trackers.clear();
+        self.choice_observers.clear();
+
+        // Initialize pickers
+        let picker_ref: &mut dyn IndexPicker<T> = &mut *self.index_picker;
+        IndexPicker::init(picker_ref, &self.state, tile_propagator_state.get_topology())?;
+
+        let picker_ref = &mut *self.pattern_picker;
+        PatternPicker::init(picker_ref, &self.state, tile_propagator_state.get_topology())?;
+
+        if self.backtrack_policy.is_some() {
+            unsafe { // TODO: Fix this for real by not adding the policy to the choice observers.
+                let mut policy_ptr: *mut dyn BacktrackPolicy<T> = match self.backtrack_policy.as_deref_mut() {
+                    Some(b) => b as *mut dyn BacktrackPolicy<T>,
+                    None => panic!("backtrack_policy is None"), // Can't happen because check above
+                };
+
+                (*policy_ptr).init(self)?;
+            }
+        }
+        // if let Some(ref mut policy) = self.backtrack_policy {
+        //     policy.init(self)?;
         // }
-        //
-        // self.status = Resolution::Undecided;
-        // self.contradiction_reason = None;
-        // self.contradiction_source = None;
-        // self.trackers.clear();
-        // self.choice_observers.clear();
-        //
-        // // Initialize pickers
-        // // let picker_ref = &mut *self.index_picker;
-        // // IndexPicker::init(picker_ref, self)?;
-        // //
-        // // let picker_ref = &mut *self.pattern_picker;
-        // // PatternPicker::init(picker_ref, self)?;
-        //
-        // unsafe { // TODO: Fix this for real
-        //     /*
-        //         let b_box_ptr: *mut Box<dyn BTrait> = &mut self.b;
-        //
-        //         unsafe {
-        //             // You can get &mut dyn BTrait from the box pointer:
-        //             let b_trait_ptr: *mut dyn BTrait = &mut **b_box_ptr;
-        //             (*b_trait_ptr).run(self);
-        //         }
-        //      */
-        //     let picker_ref: *mut Box<dyn IndexPicker<T>> = &mut self.index_picker;
-        //     IndexPicker::init(picker_ref, self)?;
-        //
-        //     let picker_ref = &mut *self.pattern_picker;
-        //     PatternPicker::init(picker_ref, self)?;
-        // }
-        //
-        //
-        //
-        // if self.backtrack_policy.is_some() {
-        //     unsafe { // TODO: Fix this for real
-        //         let mut policy_ptr: *mut dyn BacktrackPolicy<T> = match self.backtrack_policy.as_deref_mut() {
-        //             Some(b) => b as *mut dyn BacktrackPolicy<T>,
-        //             None => panic!("backtrack_policy is None"), // Can't happen because check above
-        //         };
-        //
-        //         (*policy_ptr).init(self)?;
-        //     }
-        // }
-        // // if let Some(ref mut policy) = self.backtrack_policy {
-        // //     policy.init(self)?;
-        // // }
-        //
-        // self.pattern_model_constraint.clear();
-        //
-        // if self.status == Resolution::Contradiction {
-        //     return Ok(self.status);
-        // }
-        //
-        // self.init_constraints().ok();
-        //
-        // Ok(self.status)
+
+        self.pattern_model_constraint.clear();
+
+        if self.state.status == Resolution::Contradiction {
+            return Ok(self.state.status);
+        }
+
+        self.init_constraints().ok();
+
+        Ok(self.state.status)
     }
 
     fn init_constraints(&mut self) -> Result<(), String> {
@@ -264,7 +284,7 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
         for _i in 0..constraints_len {
             // constraint.init(self);
             {
-                if self.status != Resolution::Undecided {
+                if self.state.status != Resolution::Undecided {
                     return Ok(());
                 }
             }
@@ -272,7 +292,7 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
             self.pattern_model_constraint.propagate();
 
             {
-                if self.status != Resolution::Undecided {
+                if self.state.status != Resolution::Undecided {
                     return Ok(());
                 }
             }
@@ -288,32 +308,32 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
         }
 
         // If we're already in a final state, skip making an observation
-        if self.status != Resolution::Undecided {
+        if self.state.status != Resolution::Undecided {
             self.try_backtrack_until_no_contradiction()?;
-            return Ok(self.status);
+            return Ok(self.state.status);
         }
 
         let (index, pattern) = {
             // Pick an index to use
             let index = {
-                let random_fn = self.random_double.clone();
+                let random_fn = self.state.random_double.clone();
                 self.index_picker.get_random_index(random_fn)
                     .ok_or("unable to get random index from pattern picker")?
             };
 
             if index == -1 {
                 // No more indices to process
-                if self.status == Resolution::Undecided {
-                    self.status = Resolution::Decided;
+                if self.state.status == Resolution::Undecided {
+                    self.state.status = Resolution::Decided;
                 }
-                return Ok(self.status);
+                return Ok(self.state.status);
             }
 
             let mut pattern: Option<usize> = None;
             if index != -1 {
                 // Pick a pattern to select at that index
                 pattern = {
-                    let random_fn = self.random_double.clone();
+                    let random_fn = self.state.random_double.clone();
                     self.pattern_picker.get_random_possible_pattern_at(index as usize, random_fn)
                 };
             }
@@ -326,20 +346,20 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
 
             // Use the pick
             if self.internal_select(index as usize, pattern).ok_or("unable to internal_select")? {
-                self.status = Resolution::Contradiction;
+                self.state.status = Resolution::Contradiction;
             }
         }
 
         // Re-evaluate status
-        if self.status == Resolution::Undecided {
+        if self.state.status == Resolution::Undecided {
             self.pattern_model_constraint.propagate();
         }
-        if self.status == Resolution::Undecided {
+        if self.state.status == Resolution::Undecided {
             self.step_constraints();
         }
 
         self.try_backtrack_until_no_contradiction()?;
-        Ok(self.status)
+        Ok(self.state.status)
     }
 
     pub fn step_constraints(&mut self) {
@@ -348,14 +368,14 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
         for _i in 0..constraints_len {
             // constraint.check(self);
             {
-                if self.status != Resolution::Undecided {
+                if self.state.status != Resolution::Undecided {
                     return;
                 }
             }
 
             self.pattern_model_constraint.propagate();
             {
-                if self.status != Resolution::Undecided {
+                if self.state.status != Resolution::Undecided {
                     return;
                 }
             }
@@ -422,218 +442,217 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
 
     // Internal API for constraints
     pub fn internal_ban(&mut self, index: usize, pattern: usize) -> Option<bool> {
-        panic!("internal_ban not implemented");
-        // if self.wave.is_none() {
-        //     println!("WavePropagator.internal_ban: wave is None!");
-        //     return None;
-        // }
-        //
-        // // Record information for backtracking
-        // if self.backtrack {
-        //     if let Some(ref mut backtrack_items) = self.backtrack_items {
-        //         backtrack_items.push_back(IndexPatternItem::new(index as i32, pattern as i32));
-        //     }
-        // }
-        //
-        // self.pattern_model_constraint.do_ban(index, pattern as i32);
-        //
-        // // Update the wave
-        // let is_contradiction = self.wave.unwrap().remove_possibility(index, pattern); // Safe because checked above
-        //
-        // // Update trackers
-        // for tracker in &mut self.trackers {
-        //     tracker.do_ban(index, pattern);
-        // }
-        //
-        // Some(is_contradiction)
+        if self.state.wave.is_none() {
+            println!("WavePropagator.internal_ban: wave is None!");
+            return None;
+        }
+
+        // Record information for backtracking
+        if self.backtrack {
+            if let Some(ref mut backtrack_items) = self.backtrack_items {
+                backtrack_items.push_back(IndexPatternItem::new(index as i32, pattern as i32));
+            }
+        }
+
+        self.pattern_model_constraint.do_ban(index, pattern as i32);
+
+        // Update the wave
+        let is_contradiction = self.state.wave.as_mut().unwrap().remove_possibility(index, pattern); // Safe because checked above
+
+        // Update trackers
+        for tracker in &mut self.trackers {
+            tracker.do_ban(index, pattern);
+        }
+
+        Some(is_contradiction)
     }
 
     pub fn internal_select(&mut self, index: usize, chosen_pattern: usize) -> Option<bool> {
-        panic!("internal_select not implemented");
-        // Simple, inefficient way
-        // if !Optimizations::QUICK_SELECT {
-        //     let pattern_count = self.pattern_count;
-        //     for pattern in 0..pattern_count {
-        //         if pattern == chosen_pattern {
-        //             continue;
-        //         }
-        //         // Check if pattern is available
-        //         let pattern_available = {
-        //             self.wave.get(index, pattern)
-        //         };
-        //
-        //         if pattern_available {
-        //             if self.internal_ban(index, pattern)? {
-        //                 return Some(true);
-        //             }
-        //         }
-        //     }
-        //     return Some(false);
-        // }
-        //
-        // // Quick select path - collect all patterns to ban first
-        // let patterns_to_ban: Vec<usize> = {
-        //     let mut patterns = Vec::new();
-        //     for pattern in 0..self.pattern_count {
-        //         if pattern != chosen_pattern {
-        //             if self.wave.get(index, pattern) {
-        //                 patterns.push(pattern);
-        //             }
-        //         }
-        //     }
-        //     patterns
-        // };
-        //
-        // // Now ban each pattern (this will acquire locks individually)
-        // for pattern in patterns_to_ban {
-        //     if self.internal_ban(index, pattern)? {
-        //         return Some(true);
-        //     }
-        // }
-        //
-        // // Do the select operation on the constraint
-        // {
-        //     self.pattern_model_constraint.do_select(index, chosen_pattern as i32);
-        // }
-        //
-        // Some(false)
+        if self.state.wave.is_none() {
+            println!("WavePropagator.internal_select: wave is None!");
+            return None;
+        }
+
+        if !Optimizations::QUICK_SELECT {
+            let pattern_count = self.pattern_count;
+            for pattern in 0..pattern_count {
+                if pattern == chosen_pattern {
+                    continue;
+                }
+                // Check if pattern is available
+                let pattern_available = {
+                    self.state.wave.as_ref().unwrap().get(index, pattern) // Safe because checked above
+                };
+
+                if pattern_available {
+                    if self.internal_ban(index, pattern)? {
+                        return Some(true);
+                    }
+                }
+            }
+            return Some(false);
+        }
+
+        // Quick select path - collect all patterns to ban first
+        let patterns_to_ban: Vec<usize> = {
+            let mut patterns = Vec::new();
+            for pattern in 0..self.pattern_count {
+                if pattern != chosen_pattern {
+                    if self.state.wave.as_mut().unwrap().get(index, pattern) { // Safe because checked above
+                        patterns.push(pattern);
+                    }
+                }
+            }
+            patterns
+        };
+
+        // Now ban each pattern (this will acquire locks individually)
+        for pattern in patterns_to_ban {
+            if self.internal_ban(index, pattern)? {
+                return Some(true);
+            }
+        }
+
+        // Do the select operation on the constraint
+        {
+            self.pattern_model_constraint.do_select(index, chosen_pattern as i32);
+        }
+
+        Some(false)
     }
 
     fn try_backtrack_until_no_contradiction(&mut self) -> Result<(), String> {
-        panic!("try_backtrack_until_no_contradiction not implemented");
-        // if !self.backtrack {
-        //     return Ok(());
-        // }
-        //
-        // while self.status == Resolution::Contradiction {
-        //     let backjump_amount = self.backtrack_policy
-        //         .ok_or("unable to get backtrack policy")
-        //         .get_backjump()
-        //         .ok_or("unable to get backjump")?;
-        //
-        //     for _i in 0..backjump_amount {
-        //         let lengths_count = {
-        //             self.backtrack_items_lengths.as_ref().map_or(0, |l| l.len())
-        //         };
-        //
-        //         if lengths_count == 1 {
-        //             // We've backtracked as much as we can
-        //             return Ok(());
-        //         }
-        //
-        //         // Actually undo various bits of state
-        //         let item = {
-        //             self.do_backtrack()?;
-        //             let item = if let Some(ref mut choices) = self.prev_choices {
-        //                 choices.pop_back() // Or pop_front?
-        //             } else {
-        //                 None
-        //             };
-        //
-        //             self.status = Resolution::Undecided;
-        //             self.contradiction_reason = None;
-        //             self.contradiction_source = None;
-        //             item
-        //         };
-        //
-        //         // Update choice observers
-        //         {
-        //             for co in &mut self.choice_observers {
-        //                 co.backtrack();
-        //             }
-        //         }
-        //
-        //         if backjump_amount == 1 {
-        //             self.backtrack_count += 1;
-        //
-        //             // Mark the given choice as impossible
-        //             if let Some(item) = item {
-        //                 if item.index >= 0 {
-        //                     if self.internal_ban(item.index as usize, item.pattern as usize).ok_or("unable to internal_ban")? {
-        //                         self.status = Resolution::Contradiction;
-        //                     }
-        //                 }
-        //             }
-        //         }
-        //     }
-        //
-        //     if backjump_amount > 1 {
-        //         self.backjump_count += 1;
-        //     }
-        //
-        //     // Revalidate status
-        //     if self.status == Resolution::Undecided {
-        //         self.pattern_model_constraint.propagate();
-        //     }
-        //     if self.status == Resolution::Undecided {
-        //         self.step_constraints();
-        //     }
-        // }
-        //
-        // Ok(())
+        if !self.backtrack {
+            return Ok(());
+        }
+        
+        while self.state.status == Resolution::Contradiction {
+            let backjump_amount = self.backtrack_policy
+                .as_mut()
+                .ok_or("unable to get backtrack policy")
+                ?.get_backjump()
+                .ok_or("unable to get backjump")?;
+        
+            for _i in 0..backjump_amount {
+                let lengths_count = {
+                    self.backtrack_items_lengths.as_ref().map_or(0, |l| l.len())
+                };
+        
+                if lengths_count == 1 {
+                    // We've backtracked as much as we can
+                    return Ok(());
+                }
+        
+                // Actually undo various bits of state
+                let item = {
+                    self.do_backtrack()?;
+                    let item = if let Some(ref mut choices) = self.prev_choices {
+                        choices.pop_back() // Or pop_front?
+                    } else {
+                        None
+                    };
+        
+                    self.state.status = Resolution::Undecided;
+                    self.contradiction_reason = None;
+                    self.contradiction_source = None;
+                    item
+                };
+        
+                // Update choice observers
+                {
+                    for co in &mut self.choice_observers {
+                        co.backtrack();
+                    }
+                }
+        
+                if backjump_amount == 1 {
+                    self.backtrack_count += 1;
+        
+                    // Mark the given choice as impossible
+                    if let Some(item) = item {
+                        if item.index >= 0 {
+                            if self.internal_ban(item.index as usize, item.pattern as usize).ok_or("unable to internal_ban")? {
+                                self.state.status = Resolution::Contradiction;
+                            }
+                        }
+                    }
+                }
+            }
+        
+            if backjump_amount > 1 {
+                self.backjump_count += 1;
+            }
+        
+            // Revalidate status
+            if self.state.status == Resolution::Undecided {
+                self.pattern_model_constraint.propagate();
+            }
+            if self.state.status == Resolution::Undecided {
+                self.step_constraints();
+            }
+        }
+        
+        Ok(())
     }
 
     // Undoes any work that was done since the last backtrack point
     fn do_backtrack(&mut self) -> Result<(), String> {
-        panic!("do_backtrack not implemented");
-        // let target_length = if let Some(ref mut lengths) = self.backtrack_items_lengths {
-        //     lengths.pop_back().unwrap_or(0) - self.dropped_backtrack_items_count
-        // } else {
-        //     0
-        // };
-        //
-        // // Collect all items to undo first
-        // let mut items_to_undo = Vec::new();
-        // if let Some(ref mut items) = self.backtrack_items {
-        //     while items.len() > target_length {
-        //         if let Some(item) = items.pop_back() {
-        //             items_to_undo.push(item);
-        //         }
-        //     }
-        // }
-        //
-        // // Clone tracker references to avoid borrowing conflicts
-        // // let tracker_refs: Vec<_> = self.trackers.iter().cloned().collect();
-        //
-        // // Now process each item
-        // for item in &items_to_undo {
-        //     let index = item.index as usize;
-        //     let pattern = item.pattern as usize;
-        //
-        //     // Add the possibility back
-        //     self.wave.ok_or("unable to get wave")?.add_possibility(index, pattern);
-        //
-        //     // Undo the pattern model constraint
-        //     self.pattern_model_constraint.undo_ban(index, pattern as i32);
-        //
-        //     // Update trackers
-        //     for tracker in &mut self.trackers {
-        //         tracker.do_ban(index, pattern);
-        //     }
-        // }
-        //
-        // Ok(())
+        let target_length = if let Some(ref mut lengths) = self.backtrack_items_lengths {
+            lengths.pop_back().unwrap_or(0) - self.dropped_backtrack_items_count
+        } else {
+            0
+        };
+
+        // Collect all items to undo first
+        let mut items_to_undo = Vec::new();
+        if let Some(ref mut items) = self.backtrack_items {
+            while items.len() > target_length {
+                if let Some(item) = items.pop_back() {
+                    items_to_undo.push(item);
+                }
+            }
+        }
+
+        // Clone tracker references to avoid borrowing conflicts
+        // let tracker_refs: Vec<_> = self.trackers.iter().cloned().collect();
+
+        // Now process each item
+        for item in &items_to_undo {
+            let index = item.index as usize;
+            let pattern = item.pattern as usize;
+
+            // Add the possibility back
+            self.state.wave.as_mut().ok_or("unable to get wave")?.add_possibility(index, pattern);
+
+            // Undo the pattern model constraint
+            self.pattern_model_constraint.undo_ban(index, pattern as i32);
+
+            // Update trackers
+            for tracker in &mut self.trackers {
+                tracker.do_ban(index, pattern);
+            }
+        }
+
+        Ok(())
     }
 
     /// Returns the only possible value of a cell if there is only one,
     /// otherwise returns -1 (multiple possible) or -2 (none possible)
     pub fn get_decided_pattern(&self, index: usize) -> Option<i32> {
-        panic!("get_decided_pattern not implemented");
-        // if self.wave.is_none() {
-        //     return Some(Resolution::Contradiction as i32);
-        // }
-        // let wave = self.wave?;
-        // let mut decided_pattern = Resolution::Contradiction as i32;
-        // for pattern in 0..self.pattern_count {
-        //     if wave.borrow().get(index, pattern) {
-        //         if decided_pattern == Resolution::Contradiction as i32 {
-        //             decided_pattern = pattern as i32;
-        //         } else {
-        //             return Some(Resolution::Undecided as i32);
-        //         }
-        //     }
-        // }
-        // Some(decided_pattern)
+        if self.state.wave.is_none() {
+            return Some(Resolution::Contradiction as i32);
+        }
+        let mut decided_pattern = Resolution::Contradiction as i32;
+        for pattern in 0..self.pattern_count {
+            if self.state.wave.as_ref()?.get(index, pattern) {
+                if decided_pattern == Resolution::Contradiction as i32 {
+                    decided_pattern = pattern as i32;
+                } else {
+                    return Some(Resolution::Undecided as i32);
+                }
+            }
+        }
+        Some(decided_pattern)
     }
 
     pub fn add_choice_observer(&mut self, observer: Box<dyn ChoiceObserver>) {
@@ -641,29 +660,34 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
     }
 
     pub fn add_tracker(&mut self, tracker: Box<dyn SuperTracker<T>>) {
+        // if tracker.is_index_picker() {
+        //     self.index_picker_trackers.push(tracker);
+        // } else {
+        //     self.pattern_picker_trackers.push(tracker);
+        // }
         self.trackers.push(tracker);
     }
 
     pub fn get_random_double(&self) -> Rc<dyn Fn() -> f64> {
-        self.random_double.clone()
+        self.state.random_double.clone()
     }
 }
 
 // getters
 impl<T: Topology + Clone> WavePropagator<T> {
     pub fn get_frequencies(&self) -> Vec<f64> {
-        self.frequencies.clone()
+        self.state.frequencies.clone()
     }
 
     pub fn status(&self) -> Resolution {
-        self.status
+        self.state.status
     }
 
     pub fn set_contradiction(&mut self) {
-        self.status = Resolution::Contradiction;
+        self.state.status = Resolution::Contradiction;
     }
 
     pub fn get_wave(&self) -> &Option<Wave> {
-        &self.wave
+        &self.state.wave
     }
 }

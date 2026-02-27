@@ -6,7 +6,7 @@ use crate::refactor::trackers::index_picker::IndexPicker;
 use crate::refactor::trackers::pattern_picker::PatternPicker;
 use crate::refactor::trackers::random_picker_utils::RandomPickerUtils;
 use crate::refactor::trackers::tracker::{SuperTracker, Tracker};
-use crate::refactor::wfc::wave_propagator::WavePropagator;
+use crate::refactor::wfc::wave_propagator::{WavePropagator, WavePropagatorState};
 
 #[derive(Default)]
 pub struct WeightedRandomPatternPicker<T: Topology + Clone> {
@@ -24,8 +24,8 @@ impl<T: Topology + Clone> WeightedRandomPatternPicker<T> {
 }
 
 impl<T: Topology + Clone> PatternPicker<T> for WeightedRandomPatternPicker<T> {
-    fn init(&mut self, wave_propagator: &WavePropagator<T>) -> Result<(), String> {
-        self.frequencies = Some(wave_propagator.get_frequencies());
+    fn init(&mut self, wave_propagator_state: &WavePropagatorState<T>, topology: &T) -> Result<(), String> {
+        self.frequencies = Some(wave_propagator_state.get_frequencies());
         Ok(())
     }
 
@@ -80,7 +80,7 @@ impl<T: Topology + Clone> Tracker for WeightedRandomPatternPicker<T> {
 }
 
 impl<T: Topology + Clone> IndexPicker<T> for WeightedRandomPatternPicker<T> {
-    fn init(&mut self, wave_propagator: &mut WavePropagator<T>) -> Result<(), String> {
+    fn init(&mut self, wave_propagator_state: &WavePropagatorState<T>, topology: &T) -> Result<(), String> {
         unimplemented!("WeightedRandomPatternPicker is not an IndexPicker")
     }
 

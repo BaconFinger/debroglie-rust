@@ -10,7 +10,7 @@ use crate::refactor::trackers::index_picker::IndexPicker;
 use crate::refactor::trackers::pattern_picker::PatternPicker;
 use crate::refactor::trackers::tracker::{SuperTracker, Tracker};
 use crate::refactor::wfc::wave::Wave;
-use crate::refactor::wfc::wave_propagator::WavePropagator;
+use crate::refactor::wfc::wave_propagator::{WavePropagator, WavePropagatorState};
 
 pub struct HeapEntropyTracker<T: Topology + Clone> {
     pattern_count: usize,
@@ -71,7 +71,7 @@ impl<T: Topology + Clone + 'static> HeapEntropyTracker<T> {
     // For debugging
     pub fn init_debug(
         &mut self,
-        wave: Option<&Wave>,
+        wave: &Option<Wave>,
         frequencies: Vec<f64>,
         mask: Option<Vec<bool>>,
         random_double: Rc<dyn Fn() -> f64>,
@@ -174,20 +174,15 @@ impl<T: Topology + Clone> Tracker for HeapEntropyTracker<T> {
     }
 }
 
-impl<T: Topology + Clone> IndexPicker<T> for HeapEntropyTracker<T> {
-    fn init(&mut self, wave_propagator: &mut WavePropagator<T>) -> Result<(), String> {
-
-        // // let random_double: Box<dyn Fn() -> f64> = Box::new(wave_propagator.get_random_double());
-        // let topology = ctx.topologies().get(wave_propagator.topology).clone().ok_or("unable to get topology")?;
-        // let mask = topology.borrow().mask();
-        // self.init_debug(
-        //     ctx,
-        //     wave_propagator.get_wave_id(),
-        //     wave_propagator.get_frequencies(),
-        //     mask,
-        //     wave_propagator.get_random_double(),
-        // )?;
-        // wave_propagator.add_tracker(self.get_self_ref());
+impl<T: Topology + Clone + 'static> IndexPicker<T> for HeapEntropyTracker<T> {
+    // fn init(&mut self, wave_propagator: &mut WavePropagator<T>, mask: Option<Vec<bool>>) -> Result<(), String> {
+    fn init(&mut self, wave_propagator_state: &WavePropagatorState<T>, topology: &T) -> Result<(), String> {
+        self.init_debug(
+            wave_propagator_state.get_wave(),
+            wave_propagator_state.get_frequencies(),
+            topology.mask(),
+            wave_propagator_state.get_random_double(),
+        )?;
         Ok(())
     }
 
@@ -273,7 +268,7 @@ impl<T: Topology + Clone + 'static> HeapEntropyTracker<T> {
 }
 
 impl<T: Topology + Clone> PatternPicker<T> for HeapEntropyTracker<T> {
-    fn init(&mut self, wave_propagator: &WavePropagator<T>) -> Result<(), String> {
+    fn init(&mut self, wave_propagator_state: &WavePropagatorState<T>, topology: &T) -> Result<(), String> {
         unimplemented!("HeapEntropyTracker is not a PatternPicker")
     }
 
@@ -290,7 +285,7 @@ impl<T: Topology + Clone> PatternPicker<T> for HeapEntropyTracker<T> {
     // }
 }
 
-impl<T: Topology + Clone> SuperTracker<T> for HeapEntropyTracker<T> {
+impl<T: Topology + Clone + 'static> SuperTracker<T> for HeapEntropyTracker<T> {
     fn is_index_picker(&self) -> bool {
         true
     }

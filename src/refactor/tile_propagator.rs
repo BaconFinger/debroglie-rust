@@ -17,7 +17,7 @@ use crate::refactor::trackers::index_picker::IndexPicker;
 use crate::refactor::trackers::tracker::SuperTracker;
 use crate::refactor::trackers::weighted_random_pattern_picker::WeightedRandomPatternPicker;
 use crate::refactor::wfc::backtrack_policy::{BacktrackPolicy, ConstantBacktrackPolicy, PatienceBackjumpPolicy};
-use crate::refactor::wfc::wave_propagator::{ModelConstraintAlgorithm, WaveConstraint, WavePropagator, WavePropagatorOptions};
+use crate::refactor::wfc::wave_propagator::{ModelConstraintAlgorithm, WaveConstraint, WavePropagator, WavePropagatorOptions, WavePropagatorState};
 
 /// TilePropagator is the main entrypoint to the DeBroglie library.
 /// It takes a TileModel and an output Topology and generates
@@ -29,10 +29,26 @@ use crate::refactor::wfc::wave_propagator::{ModelConstraintAlgorithm, WaveConstr
 pub struct TilePropagator<T>
 where T: Topology + Clone + 'static
 {
-    topology: T,
+    // topology: T,
+    // tile_model: Box<dyn TileModel<T>>,
+    // tile_model_mapping: TileModelMapping<T>,
     wave_propagator: WavePropagator<T>,
+    state: TilePropagatorState<T>,
+}
+
+pub struct TilePropagatorState<T>
+where T: Topology + Clone + 'static {
+    topology: T,
+    // wave_propagator: WavePropagator<T>,
     tile_model: Box<dyn TileModel<T>>,
     tile_model_mapping: TileModelMapping<T>,
+}
+
+impl<T> TilePropagatorState<T>
+where T: Topology + Clone + 'static {
+    pub fn get_topology(&self) -> &T {
+        &self.topology
+    }
 }
 
 impl<T> TilePropagator<T>
@@ -106,17 +122,26 @@ where T: Topology + Clone + 'static
             model_constraint_algorithm: options.model_constraint_algorithm,
         };
 
-        let wave_propagator = WavePropagator::new(
-            pattern_model,
-            &topology,
-            wave_propagator_options,
-        )?;
-
-        Ok(Self {
-            wave_propagator,
+        let state = TilePropagatorState {
+            // wave_propagator,
             topology,
             tile_model,
             tile_model_mapping,
+        };
+
+        let wave_propagator = WavePropagator::new(
+            pattern_model,
+            wave_propagator_options,
+            &state,
+        )?;
+
+
+        Ok(Self {
+            wave_propagator,
+            // topology,
+            // tile_model,
+            // tile_model_mapping,
+            state,
         })
     }
 
@@ -305,7 +330,7 @@ where T: Topology + Clone + 'static
     pub fn to_value_array_with_defaults(
         &self,
     ) -> Result<Box<dyn TopoArray<TileVisual, T>>, String> {
-        let index_count = self.topology.index_count();
+        let index_count = self.state.topology.index_count();
         let mut values = Vec::with_capacity(index_count);
 
         for i in 0..index_count {
@@ -314,7 +339,7 @@ where T: Topology + Clone + 'static
         }
 
         // Create a simple 1D topology array wrapper
-        Ok(Box::new(TopoArray1D::new(values, self.topology.clone())))
+        Ok(Box::new(TopoArray1D::new(values, self.state.topology.clone())))
         // Ok(Box::new(SimpleTopoArray::new(values, self.topology.clone())))
     }
 
@@ -390,8 +415,8 @@ impl<T: Clone, TopoT: Topology + Clone> TopoArray<T, TopoT> for DummyTopoArray<T
 
 pub struct AsIndexPicker<T: Topology + Clone, R: IndexPicker<T> + 'static>(pub Rc<RefCell<R>>, PhantomData<T>);
 impl<T: Topology + Clone, R: IndexPicker<T>> IndexPicker<T> for AsIndexPicker<T, R> {
-    fn init(&mut self, wave_propagator: &mut WavePropagator<T>) -> Result<(), String> {
-        self.0.borrow_mut().init(wave_propagator)
+    fn init(&mut self, wave_propagator_state: &WavePropagatorState<T>, topology: &T) -> Result<(), String> {
+        self.0.borrow_mut().init(wave_propagator_state, topology)
     }
 
     fn get_random_index(&mut self, random_double: Rc<dyn Fn() -> f64>) -> Option<i32> {

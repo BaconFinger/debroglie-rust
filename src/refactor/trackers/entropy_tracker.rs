@@ -5,7 +5,7 @@ use crate::refactor::trackers::index_picker::IndexPicker;
 use crate::refactor::trackers::pattern_picker::PatternPicker;
 use crate::refactor::trackers::tracker::{SuperTracker, Tracker};
 use crate::refactor::wfc::wave::Wave;
-use crate::refactor::wfc::wave_propagator::WavePropagator;
+use crate::refactor::wfc::wave_propagator::{WavePropagator, WavePropagatorState};
 
 pub struct EntropyTracker {
     pattern_count: usize,
@@ -51,7 +51,7 @@ impl EntropyTracker {
 }
 
 impl<T: Topology + Clone> IndexPicker<T> for EntropyTracker {
-    fn init(&mut self, wave_propagator: &mut WavePropagator<T>) -> Result<(), String> {
+    fn init(&mut self, wave_propagator_state: &WavePropagatorState<T>, topology: &T) -> Result<(), String> {
         Err("NYI".to_string())
         // {
         //     let topology_ref: Rc<RefCell<T>> = ctx.topologies().get(wave_propagator.topology().clone()).ok_or("unable to get topology")?.clone();
@@ -173,7 +173,7 @@ impl Tracker for EntropyTracker {
 }
 
 impl<T: Topology + Clone> PatternPicker<T> for EntropyTracker {
-    fn init(&mut self, wave_propagator: &WavePropagator<T>) -> Result<(), String> {
+    fn init(&mut self, wave_propagator_state: &WavePropagatorState<T>, topology: &T) -> Result<(), String> {
         unimplemented!("EntropyTracker is not a PatternPicker")
     }
 
