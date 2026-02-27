@@ -1,10 +1,12 @@
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::marker::PhantomData;
+use std::mem;
 use std::ops::Index;
 use std::rc::Rc;
 use std::time::{Instant};
 use image::imageops::tile;
+use serde_json::ser::State;
 use crate::refactor::models::tile_model_mapping::TileModelMapping;
 use crate::refactor::resolution::Resolution;
 use crate::refactor::tile_propagator::TilePropagatorState;
@@ -204,7 +206,7 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
 
         let pattern_model_constraint: Box<dyn PatternModelConstraint<T>> = match options.model_constraint_algorithm {
             ModelConstraintAlgorithm::OneStep => Box::new(OneStepPatternModelConstraint),
-            ModelConstraintAlgorithm::Default | ModelConstraintAlgorithm::Ac4 => Box::new(Ac4PatternModelConstraint::new(&wave_propagator, &model)),
+            ModelConstraintAlgorithm::Default | ModelConstraintAlgorithm::Ac4 => Box::new(Ac4PatternModelConstraint::new(tile_propagator_state.get_topology(), &model)),
             ModelConstraintAlgorithm::Ac3 => Box::new(Ac3PatternModelConstraint),
         };
 
@@ -217,10 +219,10 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
     }
 
     /// Repeatedly step until the status is Decided or Contradiction
-    pub fn run(&mut self, tile_model_mapping: &TileModelMapping<T>) -> Result<Resolution, String> {
+    pub fn run(&mut self, tile_model_mapping: &TileModelMapping<T>, topology: &T) -> Result<Resolution, String> {
         let now = Instant::now();
         loop {
-            let status = self.step(tile_model_mapping)?;
+            let status = self.step(tile_model_mapping, topology)?;
             if status != Resolution::Undecided {
                 return Ok(status);
             }
@@ -267,18 +269,24 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
         //     policy.init(self)?;
         // }
 
-        self.pattern_model_constraint.clear();
+        let result = self.pattern_model_constraint.clear(tile_propagator_state.get_topology(), &self.state)?;
+        if result.is_some() {
+            let (idx_to_ban, pattern_to_ban) = result.unwrap(); // Safe because checked above
+            if self.internal_ban(idx_to_ban, pattern_to_ban).unwrap() { // TODO: Does this catch the panic?
+                self.set_contradiction();
+            }
+        }
 
         if self.state.status == Resolution::Contradiction {
             return Ok(self.state.status);
         }
 
-        self.init_constraints().ok();
+        self.init_constraints(tile_propagator_state.get_topology()).ok();
 
         Ok(self.state.status)
     }
 
-    fn init_constraints(&mut self) -> Result<(), String> {
+    fn init_constraints(&mut self, topology: &T) -> Result<(), String> {
         // Note: constraints would need to be handled differently in Rust
         // This is a simplified version
         let constraints_len = self.constraints.len();
@@ -291,7 +299,9 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
                 }
             }
 
-            self.pattern_model_constraint.propagate();
+            let mut pattern_model_constraint = mem::replace(&mut self.pattern_model_constraint, Box::new(OneStepPatternModelConstraint));
+            pattern_model_constraint.propagate(topology, self);
+            self.pattern_model_constraint = pattern_model_constraint;
 
             {
                 if self.state.status != Resolution::Undecided {
@@ -302,16 +312,16 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
         Ok(())
     }
 
-    pub fn step(&mut self, tile_model_mapping: &TileModelMapping<T>) -> Result<Resolution, String> {
+    pub fn step(&mut self, tile_model_mapping: &TileModelMapping<T>, topology: &T) -> Result<Resolution, String> {
         // println!("wave_propagator.step");
         // Check if we need to step constraints
         if self.deferred_constraints_step {
-            self.step_constraints();
+            self.step_constraints(topology);
         }
 
         // If we're already in a final state, skip making an observation
         if self.state.status != Resolution::Undecided {
-            self.try_backtrack_until_no_contradiction()?;
+            self.try_backtrack_until_no_contradiction(topology)?;
             return Ok(self.state.status);
         }
 
@@ -353,17 +363,19 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
 
         // Re-evaluate status
         if self.state.status == Resolution::Undecided {
-            self.pattern_model_constraint.propagate();
+            let mut pattern_model_constraint = mem::replace(&mut self.pattern_model_constraint, Box::new(OneStepPatternModelConstraint));
+            pattern_model_constraint.propagate(topology, self)?;
+            self.pattern_model_constraint = pattern_model_constraint;
         }
         if self.state.status == Resolution::Undecided {
-            self.step_constraints();
+            self.step_constraints(topology);
         }
 
-        self.try_backtrack_until_no_contradiction()?;
+        self.try_backtrack_until_no_contradiction(topology)?;
         Ok(self.state.status)
     }
 
-    pub fn step_constraints(&mut self) {
+    pub fn step_constraints(&mut self, topology: &T) {
         let constraints_len = self.constraints.len();
 
         for _i in 0..constraints_len {
@@ -374,7 +386,9 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
                 }
             }
 
-            self.pattern_model_constraint.propagate();
+            let mut pattern_model_constraint = mem::replace(&mut self.pattern_model_constraint, Box::new(OneStepPatternModelConstraint));
+            pattern_model_constraint.propagate(topology, self);
+            self.pattern_model_constraint = pattern_model_constraint;
             {
                 if self.state.status != Resolution::Undecided {
                     return;
@@ -528,7 +542,7 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
         Some(false)
     }
 
-    fn try_backtrack_until_no_contradiction(&mut self) -> Result<(), String> {
+    fn try_backtrack_until_no_contradiction(&mut self, topology: &T) -> Result<(), String> {
         if !self.backtrack {
             return Ok(());
         }
@@ -552,7 +566,7 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
         
                 // Actually undo various bits of state
                 let item = {
-                    self.do_backtrack()?;
+                    self.do_backtrack(topology)?;
                     let item = if let Some(ref mut choices) = self.prev_choices {
                         choices.pop_back() // Or pop_front?
                     } else {
@@ -592,10 +606,12 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
         
             // Revalidate status
             if self.state.status == Resolution::Undecided {
-                self.pattern_model_constraint.propagate();
+                let mut pattern_model_constraint = mem::replace(&mut self.pattern_model_constraint, Box::new(OneStepPatternModelConstraint));
+                pattern_model_constraint.propagate(topology, self);
+                self.pattern_model_constraint = pattern_model_constraint;
             }
             if self.state.status == Resolution::Undecided {
-                self.step_constraints();
+                self.step_constraints(topology);
             }
         }
         
@@ -603,7 +619,7 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
     }
 
     // Undoes any work that was done since the last backtrack point
-    fn do_backtrack(&mut self) -> Result<(), String> {
+    fn do_backtrack(&mut self, topology: &T) -> Result<(), String> {
         let target_length = if let Some(ref mut lengths) = self.backtrack_items_lengths {
             lengths.pop_back().unwrap_or(0) - self.dropped_backtrack_items_count
         } else {
@@ -632,7 +648,7 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
             self.state.wave.as_mut().ok_or("unable to get wave")?.add_possibility(index, pattern);
 
             // Undo the pattern model constraint
-            self.pattern_model_constraint.undo_ban(index, pattern as i32);
+            self.pattern_model_constraint.undo_ban(index, pattern as i32, topology)?;
 
             // Update trackers
             for tracker in &mut self.trackers {
@@ -683,6 +699,10 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
 
     pub fn get_random_double(&self) -> Rc<dyn Fn() -> f64> {
         self.state.random_double.clone()
+    }
+
+    pub fn get_state(&self) -> &WavePropagatorState<T> {
+        &self.state
     }
 }
 

@@ -318,7 +318,7 @@ where T: Topology + Clone + 'static
 
     /// Repeatedly Steps until the status is Decided or Contradiction.
     pub fn run(&mut self) -> Result<Resolution, String> {
-        self.wave_propagator.run(&self.state.tile_model_mapping)
+        self.wave_propagator.run(&self.state.tile_model_mapping, self.state.get_topology())
     }
 
     /// Converts the generated results to an array of values.
