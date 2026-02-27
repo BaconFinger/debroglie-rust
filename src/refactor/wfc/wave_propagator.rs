@@ -335,7 +335,7 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
                 // Pick a pattern to select at that index
                 pattern = {
                     let random_fn = self.state.random_double.clone();
-                    self.pattern_picker.get_random_possible_pattern_at(index as usize, random_fn)
+                    self.pattern_picker.get_random_possible_pattern_at(index as usize, &self.state)
                 };
             }
 

@@ -5,7 +5,7 @@ use crate::refactor::wfc::wave_propagator::{WavePropagator, WavePropagatorState}
 
 pub trait PatternPicker<T: Topology + Clone> {
     fn init(&mut self, wave_propagator_state: &WavePropagatorState<T>, topology: &T) -> Result<(), String>;
-    fn get_random_possible_pattern_at(&mut self, index: usize, random_double: Rc< dyn Fn() -> f64>) -> Option<usize>;
+    fn get_random_possible_pattern_at(&mut self, index: usize, wave_propagator_state: &WavePropagatorState<T>) -> Option<usize>;
     fn as_super_tracker(&self) -> Option<&dyn SuperTracker<T>>;
     fn as_super_tracker_mut(&mut self) -> Option<&mut dyn SuperTracker<T>>;
 }

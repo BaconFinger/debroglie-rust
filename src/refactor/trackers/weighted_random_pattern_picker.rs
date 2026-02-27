@@ -30,28 +30,25 @@ impl<T: Topology + Clone> PatternPicker<T> for WeightedRandomPatternPicker<T> {
         Ok(())
     }
 
-    fn get_random_possible_pattern_at(&mut self, index: usize, random_double: Rc<dyn Fn() -> f64>) -> Option<usize> {
-        println!("WeightedRandomPatternPicker::get_random_possible_pattern_at, fix!!");
-        None
-        // if self.wave.is_none() {
-        //     println!("No wave set for WeightedRandomPatternPicker");
-        //     return None;
-        // }
-        //
-        // let frequencies = self.frequencies.as_ref()?;
-        // let pattern = RandomPickerUtils::get_random_possible_pattern(
-        //     ctx,
-        //     self.wave?,
-        //     random_double,
-        //     index,
-        //     frequencies,
-        // )?;
-        //
-        // if pattern < 0 {
-        //     None
-        // } else {
-        //     Some(pattern)
-        // }
+    fn get_random_possible_pattern_at(&mut self, index: usize, wave_propagator_state: &WavePropagatorState<T>) -> Option<usize> {
+        if wave_propagator_state.get_wave().is_none() {
+            println!("No wave set for WeightedRandomPatternPicker");
+            return None;
+        }
+
+        let frequencies = self.frequencies.as_ref()?;
+        let pattern = RandomPickerUtils::get_random_possible_pattern::<T>(
+            wave_propagator_state.get_wave().as_ref().unwrap(),
+            wave_propagator_state.get_random_double(),
+            index,
+            frequencies,
+        )?;
+
+        if pattern < 0 {
+            None
+        } else {
+            Some(pattern)
+        }
     }
 
     fn as_super_tracker(&self) -> Option<&dyn SuperTracker<T>> {

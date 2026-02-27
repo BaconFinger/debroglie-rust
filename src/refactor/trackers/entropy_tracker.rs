@@ -167,7 +167,7 @@ impl<T: Topology + Clone + 'static> PatternPicker<T> for EntropyTracker {
         unimplemented!("EntropyTracker is not a PatternPicker")
     }
 
-    fn get_random_possible_pattern_at(&mut self, index: usize, random_double: Rc<dyn Fn() -> f64>) -> Option<usize> {
+    fn get_random_possible_pattern_at(&mut self, index: usize, wave_propagator_state: &WavePropagatorState<T>) -> Option<usize> {
         unimplemented!("EntropyTracker is not a PatternPicker")
     }
 
