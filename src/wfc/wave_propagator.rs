@@ -297,7 +297,7 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
                 }
             }
 
-            pattern_model_constraint.propagate(topology, self);
+            pattern_model_constraint.propagate(topology, self)?;
 
             {
                 if self.state.status != Resolution::Undecided {
@@ -390,7 +390,9 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
                 }
             }
 
-            pattern_model_constraint.propagate(topology, self);
+            if let Err(err) = pattern_model_constraint.propagate(topology, self) {
+                println!("Unable to propagate constraint: {}", err);
+            }
             {
                 if self.state.status != Resolution::Undecided {
                     return;
@@ -471,7 +473,9 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
             }
         }
 
-        pattern_model_constraint.do_ban(index, pattern as i32);
+        if let Err(err) = pattern_model_constraint.do_ban(index, pattern as i32) {
+            println!("Unable to do_ban: {}", err);
+        }
 
         // Update the wave
         let is_contradiction = self.state.wave.as_mut().unwrap().remove_possibility(index, pattern); // Safe because checked above
@@ -549,9 +553,10 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
         }
 
         // Do the select operation on the constraint
-        {
-            pattern_model_constraint.do_select(index, chosen_pattern as i32);
+        if let Err(err) = pattern_model_constraint.do_select(index, chosen_pattern as i32) {
+            println!("Unable to do_select: {}", err);
         }
+
 
         Some(false)
     }
@@ -621,7 +626,7 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
             // Revalidate status
             if self.state.status == Resolution::Undecided {
                 // let mut pattern_model_constraint = mem::replace(&mut self.pattern_model_constraint, Box::new(OneStepPatternModelConstraint));
-                pattern_model_constraint.propagate(topology, self);
+                pattern_model_constraint.propagate(topology, self)?;
                 // self.pattern_model_constraint = pattern_model_constraint;
             }
             if self.state.status == Resolution::Undecided {

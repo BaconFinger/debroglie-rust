@@ -67,7 +67,7 @@ impl<T: Topology + Clone + 'static> HeapEntropyTracker<T> {
         self.heap = Some(SharedMutHeap::with_capacity(self.index_count));
         self.tracker = Some(ChangeTracker::with_index_count(self.index_count));
 
-        self.reset();
+        self.reset()?;
 
         Ok(())
     }
@@ -114,7 +114,7 @@ impl<T: Topology + Clone> Tracker for HeapEntropyTracker<T> {
         }
 
         if let Some(ref mut tracker) = self.tracker {
-            tracker.reset();
+            tracker.reset()?;
         }
 
         Ok(())
@@ -128,7 +128,7 @@ impl<T: Topology + Clone> Tracker for HeapEntropyTracker<T> {
         // self.sync_heap_evs();
 
         if let Some(ref mut tracker) = self.tracker {
-            tracker.do_ban(index, pattern);
+            tracker.do_ban(index, pattern)?;
         }
 
         Ok(())
@@ -142,7 +142,7 @@ impl<T: Topology + Clone> Tracker for HeapEntropyTracker<T> {
         // self.sync_heap_evs();
 
         if let Some(ref mut tracker) = self.tracker {
-            tracker.undo_ban(index, pattern);
+            tracker.undo_ban(index, pattern)?;
         }
 
         Ok(())
@@ -159,15 +159,14 @@ impl<T: Topology + Clone + 'static> IndexPicker<T> for HeapEntropyTracker<T> {
     }
 
     fn get_random_index(&mut self, wave_propagator_state: &WavePropagatorState<T>, tile_model_mapping: &TileModelMapping<T>) -> Option<i32> {
-        let mut changed_indices: Vec<usize> = Vec::new();
-        if self.tracker.is_some() {
-            let mut tracker = self.tracker.take()?;
-            changed_indices = tracker.get_changed_indices(tile_model_mapping).unwrap_or_default();
+        let changed_indices = if let Some(mut tracker) = self.tracker.take() {
+            let indices = tracker.get_changed_indices(tile_model_mapping).unwrap_or_default();
             self.tracker = Some(tracker);
+            indices
         } else {
             println!("No tracker!");
             return None;
-        }
+        };
 
         let wave = wave_propagator_state.get_wave().as_ref()?;
 

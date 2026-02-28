@@ -260,7 +260,7 @@ impl DirectionSet {
     }
 
     /// Returns an iterator over all valid directions for this set
-    pub fn iter(&self) -> DirectionSetIterator {
+    pub fn iter(&self) -> DirectionSetIterator<'_> {
         DirectionSetIterator {
             direction_set: self,
             current: 0,

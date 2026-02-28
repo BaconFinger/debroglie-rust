@@ -170,6 +170,7 @@ where T: Topology + Clone + 'static
             }
         }
 
+        #[allow(unused_assignments)]
         let mut index_picker: Option<Box<dyn SuperTracker<T>>> = None;
         let mut pattern_picker: Option<Box<dyn SuperTracker<T>>> = None;
 

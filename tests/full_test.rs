@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Mutex;
 use debroglie_rust::models::adjacent_model::AdjacentModel;

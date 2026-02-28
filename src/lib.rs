@@ -1,4 +1,4 @@
-#![allow(unused_variables)]
+#![allow(unused_variables, dead_code)] // TODO: Reconsider this once we've ported most everything.
 pub mod context;
 pub mod tile;
 

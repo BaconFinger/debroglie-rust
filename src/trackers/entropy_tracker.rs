@@ -43,7 +43,7 @@ impl EntropyTracker {
         }
 
         self.entropy_values = vec![EntropyValues::default(); self.indices];
-        self.reset();
+        self.reset()?;
 
         Ok(())
     }

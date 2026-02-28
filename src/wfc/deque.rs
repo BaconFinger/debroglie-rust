@@ -233,7 +233,7 @@ impl<T> Deque<T> {
         self.hi = j;
     }
 
-    pub fn slice(&self, start: usize, end: usize) -> DequeSliceIter<T> {
+    pub fn slice(&self, start: usize, end: usize) -> DequeSliceIter<'_, T> {
         if start >= end {
             panic!("Invalid slice range");
         }
@@ -268,7 +268,7 @@ impl<T> Deque<T> {
         }
     }
 
-    pub fn reverse_slice(&self, start: usize, end: usize) -> DequeReverseSliceIter<T> {
+    pub fn reverse_slice(&self, start: usize, end: usize) -> DequeReverseSliceIter<'_, T> {
         if start >= end {
             panic!("Invalid slice range");
         }

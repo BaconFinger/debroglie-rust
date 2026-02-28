@@ -42,6 +42,7 @@ impl<T: Topology + Clone> PatternPicker<T> for WeightedRandomPatternPicker<T> {
             frequencies,
         )?;
 
+        #[allow(unused_comparisons)]
         if pattern < 0 {
             None
         } else {

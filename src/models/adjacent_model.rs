@@ -581,10 +581,11 @@ impl AdjacentModel {
 }
 
 mod tests {
-
+    #![allow(dead_code, unused_imports)]
+    
+    use crate::topology::ragged_topology_array_2d::RaggedTopoArray2D;
     use crate::tile::ToTile;
     use crate::topology::direction::DirectionSetType::Cartesian2d;
-    use crate::topology::ragged_topology_array_2d::RaggedTopoArray2D;
     use super::*;
 
     #[test]

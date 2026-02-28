@@ -145,6 +145,8 @@ impl<V: Clone + 'static, T: Topology + Clone + 'static> TilePropagatorOptions<V,
 }
 
 mod tests {
+    #![allow(dead_code, unused_imports)]
+
     use crate::topology::grid_topology::GridTopology;
     use super::*;
 
