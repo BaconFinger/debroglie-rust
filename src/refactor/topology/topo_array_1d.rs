@@ -17,14 +17,10 @@ impl<T, TopologyT: Topology + Clone> TopoArray1D<T, TopologyT> {
     }
 }
 
-impl<T, TopologyT: Topology + Clone> TopoArray<T, TopologyT> for TopoArray1D<T, TopologyT> {
+impl<T: Clone + 'static, TopologyT: Topology + Clone> TopoArray<T, TopologyT> for TopoArray1D<T, TopologyT> {
     /// Gets the topology associated with this array
     fn topology(&self) -> Option<&TopologyT> {
         Some(&self.topology)
-    }
-
-    fn get_coord(&self, x: usize, y: usize, z: usize) -> Result<&T, TopologyError> {
-        todo!()
     }
 
     /// Gets the value at the specified index
@@ -49,6 +45,10 @@ impl<T, TopologyT: Topology + Clone> TopoArray<T, TopologyT> for TopoArray1D<T, 
     }
 
     fn get_id_from_coord(&self, x: usize, y: usize, z: usize) -> Option<usize> {
+        todo!()
+    }
+
+    fn clone_box(&self) -> Option<Box<dyn TopoArray<T, TopologyT>>> {
         todo!()
     }
 }

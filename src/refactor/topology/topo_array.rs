@@ -1,18 +1,22 @@
+use std::marker::PhantomData;
 use std::rc::Rc;
+use crate::context::Context;
 use crate::refactor::topology::grid_topology::GridTopology;
 use crate::refactor::topology::ragged_topology_array_2d::{RaggedTopoArray2D, RaggedTopoArray2DGeneric};
 use crate::refactor::topology::topology::{Topology, TopologyError};
 
 /// A read-only array coupled with a specific Topology
-pub trait TopoArray<T, Topo: Topology + Clone> {
+pub trait TopoArray<T: Clone + 'static, Topo: Topology + Clone> {
     fn topology(&self) -> Option<&Topo>;
 
     /// Gets the value at a particular location.
-    // fn get_coord(&self, x: usize, y: usize, z: usize) -> Result<&T, TopologyError> {
-    //     let index = topology.get_index(x, y, z)?;
-    //     self.get_index(topology, index)
-    // }
-    fn get_coord(&self, x: usize, y: usize, z: usize) -> Result<&T, TopologyError>;
+    fn get_coord(&self, x: usize, y: usize, z: usize) -> Result<&T, TopologyError> {
+        let index = self
+            .topology()
+            .ok_or(TopologyError::Other("unable to get topology".to_string()))
+            ?.get_index(x, y, z)?;
+        self.get_index(index)
+    }
 
     // /// Gets the value at a particular location.
     // fn get_coord_with_index(&self, x: usize, y: usize, z: usize) -> Result<(&T, usize), TopologyError>;
@@ -41,6 +45,7 @@ pub trait TopoArray<T, Topo: Topology + Clone> {
 
     fn get_id_from_index(&self, index: usize) -> Option<usize>;
     fn get_id_from_coord(&self, x: usize, y: usize, z: usize) -> Option<usize>;
+    fn clone_box(&self) -> Option<Box<dyn TopoArray<T, Topo>>>;
 }
 
 pub trait TopoArray1D<T, Topo: Topology + Clone> {
@@ -56,7 +61,7 @@ pub trait TopoArray3D<T, Topo: Topology + Clone> {
 }
 
 /// A mutable array coupled with a specific Topology
-pub trait TopoArrayMut<T, Topo: Topology + Clone>: TopoArray<T, Topo> {
+pub trait TopoArrayMut<T: Clone + 'static, Topo: Topology + Clone>: TopoArray<T, Topo> {
     /// Sets the value at a particular location.
     fn set_coord(&mut self, topology: &Topo, x: usize, y: usize, z: usize, value: T) -> Result<(), TopologyError> {
         let index = topology.get_index(x, y, z)?;
@@ -179,4 +184,47 @@ impl TopologyArray {
     // 
     //     crate::procedural_generation::debroglie_scuffed::topology::topo_array_1d::TopoArray1D::new(values, topology)
     // }
+}
+
+pub struct DefaultTopoArray<T, TTopo: Topology + Clone> {
+    _phantom: PhantomData<(T, TTopo)>
+}
+
+impl<T, TTopo: Topology + Clone> DefaultTopoArray<T, TTopo> {
+    pub fn new() -> DefaultTopoArray<T, TTopo> {
+        DefaultTopoArray { _phantom: PhantomData }
+    }
+}
+impl<T: Clone + 'static, TTopo: Topology + Clone + 'static> TopoArray<T, TTopo> for DefaultTopoArray<T, TTopo> {
+    fn topology(&self) -> Option<&TTopo> {
+        unimplemented!("DefaultTopoArray is a default value and should not be used")
+    }
+
+    fn get_coord(&self, x: usize, y: usize, z: usize) -> Result<&T, TopologyError> {
+        unimplemented!("DefaultTopoArray is a default value and should not be used")
+    }
+
+    fn get_index(&self, index: usize) -> Result<&T, TopologyError> {
+        unimplemented!("DefaultTopoArray is a default value and should not be used")
+    }
+
+    fn get_value_from_index(&self, index: usize) -> Option<&T> {
+        unimplemented!("DefaultTopoArray is a default value and should not be used")
+    }
+
+    fn get_value_from_coord(&self, x: usize, y: usize, z: usize) -> Option<&T> {
+        unimplemented!("DefaultTopoArray is a default value and should not be used")
+    }
+
+    fn get_id_from_index(&self, index: usize) -> Option<usize> {
+        unimplemented!("DefaultTopoArray is a default value and should not be used")
+    }
+
+    fn get_id_from_coord(&self, x: usize, y: usize, z: usize) -> Option<usize> {
+        unimplemented!("DefaultTopoArray is a default value and should not be used")
+    }
+
+    fn clone_box(&self) -> Option<Box<dyn TopoArray<T, TTopo>>> {
+        None
+    }
 }

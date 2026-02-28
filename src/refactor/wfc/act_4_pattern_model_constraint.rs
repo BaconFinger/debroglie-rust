@@ -274,7 +274,7 @@ impl<T: Topology + Clone + 'static> PatternModelConstraint<T> for Ac4PatternMode
                         let result = self.propagate_ban_core(&patterns, i2, id as usize)?;
                         if result.is_some() {
                             let (idx_to_ban, pattern_to_ban) = result.unwrap(); // safe because checked above
-                            if wave_propagator.internal_ban(idx_to_ban, pattern_to_ban).unwrap() {
+                            if wave_propagator.internal_ban(idx_to_ban, pattern_to_ban, self).unwrap() {
                                 wave_propagator.set_contradiction();
                             }
                         }
@@ -299,7 +299,7 @@ impl<T: Topology + Clone + 'static> PatternModelConstraint<T> for Ac4PatternMode
                         let result = self.propagate_select_core(&patterns_dense, i2, id as usize)?;
                         if result.is_some() {
                             let (idx_to_ban, pattern_to_ban) = result.unwrap(); // safe because checked above
-                            if wave_propagator.internal_ban(idx_to_ban, pattern_to_ban).unwrap() {
+                            if wave_propagator.internal_ban(idx_to_ban, pattern_to_ban, self).unwrap() {
                                 wave_propagator.set_contradiction();
                             }
                         }

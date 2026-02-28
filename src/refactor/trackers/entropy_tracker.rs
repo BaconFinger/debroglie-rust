@@ -147,18 +147,22 @@ impl Tracker for EntropyTracker {
         Ok(())
     }
 
-    fn do_ban(&mut self, index: usize, pattern: usize) {
+    fn do_ban(&mut self, index: usize, pattern: usize) -> Result<(), String> {
         self.entropy_values[index].decrement(
             self.frequencies[pattern],
             self.plogp[pattern],
         );
+
+        Ok(())
     }
 
-    fn undo_ban(&mut self, index: usize, pattern: usize) {
+    fn undo_ban(&mut self, index: usize, pattern: usize) -> Result<(), String> {
         self.entropy_values[index].increment(
             self.frequencies[pattern],
             self.plogp[pattern],
         );
+
+        Ok(())
     }
 }
 

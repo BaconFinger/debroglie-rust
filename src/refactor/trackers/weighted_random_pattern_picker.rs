@@ -62,15 +62,15 @@ impl<T: Topology + Clone> PatternPicker<T> for WeightedRandomPatternPicker<T> {
 
 impl<T: Topology + Clone> Tracker for WeightedRandomPatternPicker<T> {
     fn reset(&mut self) -> Result<(), String> {
-        unimplemented!("WeightedRandomPatternPicker is not a Tracker")
+        Err("WeightedRandomPatternPicker is not a Tracker".to_string())
     }
 
-    fn do_ban(&mut self, index: usize, pattern: usize) {
-        unimplemented!("WeightedRandomPatternPicker is not a Tracker")
+    fn do_ban(&mut self, index: usize, pattern: usize) -> Result<(), String> {
+        Err("WeightedRandomPatternPicker is not a Tracker".to_string())
     }
 
-    fn undo_ban(&mut self, index: usize, pattern: usize) {
-        unimplemented!("WeightedRandomPatternPicker is not a Tracker")
+    fn undo_ban(&mut self, index: usize, pattern: usize) -> Result<(), String> {
+        Err("WeightedRandomPatternPicker is not a Tracker".to_string())
     }
 }
 

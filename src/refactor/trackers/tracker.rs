@@ -21,10 +21,10 @@ pub trait Tracker {
     fn reset(&mut self) -> Result<(), String>;
 
     /// Called when a pattern is banned at a specific index
-    fn do_ban(&mut self, index: usize, pattern: usize);
+    fn do_ban(&mut self, index: usize, pattern: usize) -> Result<(), String>;
 
     /// Called when a pattern ban is undone at a specific index
-    fn undo_ban(&mut self, index: usize, pattern: usize);
+    fn undo_ban(&mut self, index: usize, pattern: usize) -> Result<(), String>;
 }
 
 /// A Tracker that also implements IndexPicker and PatternPicker.

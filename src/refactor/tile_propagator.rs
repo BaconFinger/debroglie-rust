@@ -129,12 +129,13 @@ where T: Topology + Clone + 'static
             tile_model_mapping,
         };
 
-        let wave_propagator = WavePropagator::new(
+        let mut wave_propagator = WavePropagator::new(
             pattern_model,
             wave_propagator_options,
             &state,
         )?;
 
+        wave_propagator.clear(&state)?;
 
         Ok(Self {
             wave_propagator,
@@ -345,37 +346,39 @@ where T: Topology + Clone + 'static
 
     /// Gets the value of a Tile that has been decided at a given index with defaults.
     pub fn get_value_with_defaults(&self, index: usize) -> Option<TileVisual> {
-        panic!("NYI");
-        // let (pattern_index, o) = self.tile_model_mapping
-        //     .get_tile_coord_to_pattern_coord_by_index(&self.topology, index);
-        // let pattern = self.wave_propagator.get_decided_pattern(pattern_index)?;
-        //
-        // match pattern as i8 {
-        //     -1 => None, // Resolution::Undecided
-        //     -2 => None, // Resolution::Contradiction
-        //     _ => {
-        //         if let Some(patterns_to_tiles) = self.tile_model_mapping.patterns_to_tiles_by_offset.get(&o) {
-        //             if let Some(tile) = patterns_to_tiles.get(&(pattern as usize)) {
-        //                 let tile_ref = self.get_tile(tile.clone())?;
-        //                 let tile = tile_ref.borrow();
-        //                 Some(tile.get_value().clone())
-        //             } else {
-        //                 None
-        //             }
-        //         } else {
-        //             None
-        //         }
-        //     }
-        // }
+        let (pattern_index, o) = self.state.tile_model_mapping
+            .get_tile_coord_to_pattern_coord_by_index(index);
+        let pattern = self.wave_propagator.get_decided_pattern(pattern_index)?;
+
+        match pattern as i8 {
+            -1 => None, // Resolution::Undecided
+            -2 => None, // Resolution::Contradiction
+            _ => {
+                if let Some(patterns_to_tiles) = self.state.tile_model_mapping.patterns_to_tiles_by_offset.get(&o) {
+                    if let Some(tile_id) = patterns_to_tiles.get(&(pattern as usize)) {
+                        let tile = self.state.tile_model.get_tile(tile_id.0);
+                        let mut visual: Option<TileVisual> = None;
+                        if tile.is_some() {
+                            visual = Some(tile.unwrap().get_value().clone());
+                        }
+                        visual
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+        }
     }
 }
 
 /// A dummy TopoArray implementation for cases where we need a placeholder
-pub struct DummyTopoArray<T> {
+pub struct DummyTopoArray<T: Clone + 'static> {
     _phantom: std::marker::PhantomData<T>,
 }
 
-impl<T> DummyTopoArray<T> {
+impl<T: Clone + 'static> DummyTopoArray<T> {
     pub fn new() -> Self {
         Self {
             _phantom: std::marker::PhantomData,
@@ -383,7 +386,7 @@ impl<T> DummyTopoArray<T> {
     }
 }
 
-impl<T: Clone, TopoT: Topology + Clone> TopoArray<T, TopoT> for DummyTopoArray<T> {
+impl<T: Clone + 'static, TopoT: Topology + Clone + 'static> TopoArray<T, TopoT> for DummyTopoArray<T> {
     fn topology(&self) -> Option<&TopoT> {
         todo!()
     }
@@ -409,6 +412,10 @@ impl<T: Clone, TopoT: Topology + Clone> TopoArray<T, TopoT> for DummyTopoArray<T
     }
 
     fn get_id_from_coord(&self, x: usize, y: usize, z: usize) -> Option<usize> {
+        todo!()
+    }
+
+    fn clone_box(&self) -> Option<Box<dyn TopoArray<T, TopoT>>> {
         todo!()
     }
 }

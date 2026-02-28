@@ -113,7 +113,7 @@ impl <V: Clone + 'static, T: Topology + Clone> Debug for TilePropagatorOptions<V
     }
 }
 
-impl<V: Clone + 'static, T: Topology + Clone> TilePropagatorOptions<V, T> {
+impl<V: Clone + 'static, T: Topology + Clone + 'static> TilePropagatorOptions<V, T> {
     pub fn new(backtrack: bool, random_double: Option<Rc<dyn Fn() -> f64>>, constraints: Option<Vec<Box<dyn TileConstraint<T>>>>,) -> Self {
         Self {
             backtrack: if backtrack { BacktrackType::Backtrack } else { BacktrackType::None },

@@ -220,7 +220,6 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
 
     /// Repeatedly step until the status is Decided or Contradiction
     pub fn run(&mut self, tile_model_mapping: &TileModelMapping<T>, topology: &T) -> Result<Resolution, String> {
-        let now = Instant::now();
         loop {
             let status = self.step(tile_model_mapping, topology)?;
             if status != Resolution::Undecided {
@@ -269,24 +268,28 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
         //     policy.init(self)?;
         // }
 
-        let result = self.pattern_model_constraint.clear(tile_propagator_state.get_topology(), &self.state)?;
+        let mut pattern_model_constraint_owner = mem::replace(&mut self.pattern_model_constraint, Box::new(OneStepPatternModelConstraint));;
+        let mut pattern_model_constraint: &mut dyn PatternModelConstraint<T> = &mut *pattern_model_constraint_owner;
+        let result = pattern_model_constraint.clear(tile_propagator_state.get_topology(), &self.state)?;
         if result.is_some() {
             let (idx_to_ban, pattern_to_ban) = result.unwrap(); // Safe because checked above
-            if self.internal_ban(idx_to_ban, pattern_to_ban).unwrap() { // TODO: Does this catch the panic?
+            if self.internal_ban(idx_to_ban, pattern_to_ban, pattern_model_constraint).unwrap() { // TODO: Does this catch the panic?
                 self.set_contradiction();
             }
         }
 
         if self.state.status == Resolution::Contradiction {
+            self.pattern_model_constraint = pattern_model_constraint_owner;
             return Ok(self.state.status);
         }
 
-        self.init_constraints(tile_propagator_state.get_topology()).ok();
+        self.init_constraints(tile_propagator_state.get_topology(), pattern_model_constraint).ok();
 
+        self.pattern_model_constraint = pattern_model_constraint_owner;
         Ok(self.state.status)
     }
 
-    fn init_constraints(&mut self, topology: &T) -> Result<(), String> {
+    fn init_constraints(&mut self, topology: &T, pattern_model_constraint: &mut dyn PatternModelConstraint<T>) -> Result<(), String> {
         // Note: constraints would need to be handled differently in Rust
         // This is a simplified version
         let constraints_len = self.constraints.len();
@@ -299,9 +302,7 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
                 }
             }
 
-            let mut pattern_model_constraint = mem::replace(&mut self.pattern_model_constraint, Box::new(OneStepPatternModelConstraint));
             pattern_model_constraint.propagate(topology, self);
-            self.pattern_model_constraint = pattern_model_constraint;
 
             {
                 if self.state.status != Resolution::Undecided {
@@ -313,15 +314,18 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
     }
 
     pub fn step(&mut self, tile_model_mapping: &TileModelMapping<T>, topology: &T) -> Result<Resolution, String> {
+        let mut pattern_model_constraint_owner = mem::replace(&mut self.pattern_model_constraint, Box::new(OneStepPatternModelConstraint));;
+        let mut pattern_model_constraint: &mut dyn PatternModelConstraint<T> = &mut *pattern_model_constraint_owner;
         // println!("wave_propagator.step");
         // Check if we need to step constraints
         if self.deferred_constraints_step {
-            self.step_constraints(topology);
+            self.step_constraints(topology, pattern_model_constraint);
         }
 
         // If we're already in a final state, skip making an observation
         if self.state.status != Resolution::Undecided {
-            self.try_backtrack_until_no_contradiction(topology)?;
+            self.try_backtrack_until_no_contradiction(topology, pattern_model_constraint)?;
+            self.pattern_model_constraint = pattern_model_constraint_owner;
             return Ok(self.state.status);
         }
 
@@ -337,6 +341,7 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
                 if self.state.status == Resolution::Undecided {
                     self.state.status = Resolution::Decided;
                 }
+                self.pattern_model_constraint = pattern_model_constraint_owner;
                 return Ok(self.state.status);
             }
 
@@ -356,26 +361,30 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
             self.record_backtrack(index, pattern as i32)?;
 
             // Use the pick
-            if self.internal_select(index as usize, pattern).ok_or("unable to internal_select")? {
+            if self.internal_select(index as usize, pattern, pattern_model_constraint).ok_or("unable to internal_select")? {
                 self.state.status = Resolution::Contradiction;
             }
         }
 
-        // Re-evaluate status
-        if self.state.status == Resolution::Undecided {
+        /*
             let mut pattern_model_constraint = mem::replace(&mut self.pattern_model_constraint, Box::new(OneStepPatternModelConstraint));
             pattern_model_constraint.propagate(topology, self)?;
             self.pattern_model_constraint = pattern_model_constraint;
+         */
+        // Re-evaluate status
+        if self.state.status == Resolution::Undecided {
+            pattern_model_constraint.propagate(topology, self)?;
         }
         if self.state.status == Resolution::Undecided {
-            self.step_constraints(topology);
+            self.step_constraints(topology, pattern_model_constraint);
         }
 
-        self.try_backtrack_until_no_contradiction(topology)?;
+        self.try_backtrack_until_no_contradiction(topology, pattern_model_constraint)?;
+        self.pattern_model_constraint = pattern_model_constraint_owner;
         Ok(self.state.status)
     }
 
-    pub fn step_constraints(&mut self, topology: &T) {
+    pub fn step_constraints(&mut self, topology: &T, pattern_model_constraint: &mut dyn PatternModelConstraint<T>) {
         let constraints_len = self.constraints.len();
 
         for _i in 0..constraints_len {
@@ -386,9 +395,7 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
                 }
             }
 
-            let mut pattern_model_constraint = mem::replace(&mut self.pattern_model_constraint, Box::new(OneStepPatternModelConstraint));
             pattern_model_constraint.propagate(topology, self);
-            self.pattern_model_constraint = pattern_model_constraint;
             {
                 if self.state.status != Resolution::Undecided {
                     return;
@@ -456,7 +463,7 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
     }
 
     // Internal API for constraints
-    pub fn internal_ban(&mut self, index: usize, pattern: usize) -> Option<bool> {
+    pub fn internal_ban(&mut self, index: usize, pattern: usize, pattern_model_constraint: &mut dyn PatternModelConstraint<T>) -> Option<bool> {
         if self.state.wave.is_none() {
             println!("WavePropagator.internal_ban: wave is None!");
             return None;
@@ -469,26 +476,38 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
             }
         }
 
-        self.pattern_model_constraint.do_ban(index, pattern as i32);
+        pattern_model_constraint.do_ban(index, pattern as i32);
 
         // Update the wave
         let is_contradiction = self.state.wave.as_mut().unwrap().remove_possibility(index, pattern); // Safe because checked above
 
         // Update trackers
         for tracker in &mut self.trackers {
-            tracker.do_ban(index, pattern);
+            let res = tracker.do_ban(index, pattern);
+            Self::process_tracker_result(res, "do_ban");
         }
         if self.index_picker.as_super_tracker().is_some() {
-            self.index_picker.as_super_tracker_mut().unwrap().do_ban(index, pattern); // Safe because checked above
+            let res = self.index_picker.as_super_tracker_mut().unwrap().do_ban(index, pattern); // Safe because checked above
+            Self::process_tracker_result(res, "do_ban");
         }
         if self.pattern_picker.as_super_tracker().is_some() {
-            self.pattern_picker.as_super_tracker_mut().unwrap().do_ban(index, pattern); // Safe because checked above
+            let res = self.pattern_picker.as_super_tracker_mut().unwrap().do_ban(index, pattern); // Safe because checked above
+            Self::process_tracker_result(res, "do_ban");
         }
 
         Some(is_contradiction)
     }
 
-    pub fn internal_select(&mut self, index: usize, chosen_pattern: usize) -> Option<bool> {
+    fn process_tracker_result(res: Result<(), String>, method_name: &str) {
+        if res.is_err() {
+            let err = res.err().unwrap(); // Safe because checked above
+            if !err.contains("is not a Tracker") {
+                panic!("Unable to {} on super tracker: {}", method_name, err);
+            }
+        }
+    }
+
+    pub fn internal_select(&mut self, index: usize, chosen_pattern: usize, pattern_model_constraint: &mut dyn PatternModelConstraint<T>) -> Option<bool> {
         if self.state.wave.is_none() {
             println!("WavePropagator.internal_select: wave is None!");
             return None;
@@ -506,7 +525,7 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
                 };
 
                 if pattern_available {
-                    if self.internal_ban(index, pattern)? {
+                    if self.internal_ban(index, pattern, pattern_model_constraint)? {
                         return Some(true);
                     }
                 }
@@ -529,20 +548,20 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
 
         // Now ban each pattern (this will acquire locks individually)
         for pattern in patterns_to_ban {
-            if self.internal_ban(index, pattern)? {
+            if self.internal_ban(index, pattern, pattern_model_constraint)? {
                 return Some(true);
             }
         }
 
         // Do the select operation on the constraint
         {
-            self.pattern_model_constraint.do_select(index, chosen_pattern as i32);
+            pattern_model_constraint.do_select(index, chosen_pattern as i32);
         }
 
         Some(false)
     }
 
-    fn try_backtrack_until_no_contradiction(&mut self, topology: &T) -> Result<(), String> {
+    fn try_backtrack_until_no_contradiction(&mut self, topology: &T, pattern_model_constraint: &mut dyn PatternModelConstraint<T>) -> Result<(), String> {
         if !self.backtrack {
             return Ok(());
         }
@@ -592,7 +611,7 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
                     // Mark the given choice as impossible
                     if let Some(item) = item {
                         if item.index >= 0 {
-                            if self.internal_ban(item.index as usize, item.pattern as usize).ok_or("unable to internal_ban")? {
+                            if self.internal_ban(item.index as usize, item.pattern as usize, pattern_model_constraint).ok_or("unable to internal_ban")? {
                                 self.state.status = Resolution::Contradiction;
                             }
                         }
@@ -606,12 +625,12 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
         
             // Revalidate status
             if self.state.status == Resolution::Undecided {
-                let mut pattern_model_constraint = mem::replace(&mut self.pattern_model_constraint, Box::new(OneStepPatternModelConstraint));
+                // let mut pattern_model_constraint = mem::replace(&mut self.pattern_model_constraint, Box::new(OneStepPatternModelConstraint));
                 pattern_model_constraint.propagate(topology, self);
-                self.pattern_model_constraint = pattern_model_constraint;
+                // self.pattern_model_constraint = pattern_model_constraint;
             }
             if self.state.status == Resolution::Undecided {
-                self.step_constraints(topology);
+                self.step_constraints(topology, pattern_model_constraint);
             }
         }
         
@@ -652,13 +671,16 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
 
             // Update trackers
             for tracker in &mut self.trackers {
-                tracker.do_ban(index, pattern);
+                let res = tracker.do_ban(index, pattern);
+                Self::process_tracker_result(res, "do_ban");
             }
             if self.index_picker.as_super_tracker().is_some() {
-                self.index_picker.as_super_tracker_mut().unwrap().do_ban(index, pattern); // Safe because checked above
+                let res = self.index_picker.as_super_tracker_mut().unwrap().do_ban(index, pattern); // Safe because checked above
+                Self::process_tracker_result(res, "do_ban");
             }
             if self.pattern_picker.as_super_tracker().is_some() {
-                self.pattern_picker.as_super_tracker_mut().unwrap().do_ban(index, pattern); // Safe because checked above
+                let res = self.pattern_picker.as_super_tracker_mut().unwrap().do_ban(index, pattern); // Safe because checked above
+                Self::process_tracker_result(res, "do_ban");
             }
         }
 

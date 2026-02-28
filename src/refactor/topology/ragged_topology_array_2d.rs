@@ -73,7 +73,7 @@ fn flatten_and_map_values<T: Clone>(values: &Vec<Vec<T>>) -> (Vec<T>, Vec<Vec<us
     (flattened_values, mapped)
 }
 
-impl<T> TopoArray<T, GridTopology> for RaggedTopoArray2D<T> {
+impl<T: Clone + 'static> TopoArray<T, GridTopology> for RaggedTopoArray2D<T> {
     fn topology(&self) -> Option<&GridTopology> {
         Some(&self.topology)
     }
@@ -140,6 +140,10 @@ impl<T> TopoArray<T, GridTopology> for RaggedTopoArray2D<T> {
         }
         Some(idx.unwrap().clone())
     }
+
+    fn clone_box(&self) -> Option<Box<dyn TopoArray<T, GridTopology>>> {
+        Some(Box::new(self.clone()))
+    }
 }
 
 impl<T> TopoArray2D<T, GridTopology> for RaggedTopoArray2D<T> {
@@ -199,7 +203,8 @@ where
 
 impl<T, TopologyT> TopoArray<T, TopologyT> for RaggedTopoArray2DGeneric<T, TopologyT>
 where
-    TopologyT: Topology + Clone,
+    T: Clone + 'static,
+    TopologyT: Topology + Clone + 'static,
 {
     fn topology(&self) -> Option<&TopologyT> {
         Some(&self.topology)
@@ -262,6 +267,10 @@ where
             return None;
         }
         Some(idx.unwrap().clone())
+    }
+
+    fn clone_box(&self) -> Option<Box<dyn TopoArray<T, TopologyT>>> {
+        Some(Box::new(self.clone()))   
     }
 }
 

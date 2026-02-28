@@ -22,6 +22,8 @@ pub struct HeapEntropyTracker<T: Topology + Clone> {
     index_count: usize,
     heap: Option<SharedMutHeap<EntropyValues, OrderedFloat<f64>>>,
     tracker: Option<ChangeTracker<T>>,
+
+    initialized: bool, // TODO: Remove
 }
 
 impl<T: Topology + Clone + 'static> HeapEntropyTracker<T> {
@@ -36,6 +38,7 @@ impl<T: Topology + Clone + 'static> HeapEntropyTracker<T> {
             index_count: 0,
             heap: None,
             tracker: None,
+            initialized: false,
         };
         Box::new(me)
     }
@@ -51,6 +54,7 @@ impl<T: Topology + Clone + 'static> HeapEntropyTracker<T> {
             index_count: 0,
             heap: None,
             tracker: None,
+            initialized: false,
         }
     }
 
@@ -65,6 +69,7 @@ impl<T: Topology + Clone + 'static> HeapEntropyTracker<T> {
             index_count: 0,
             heap: None,
             tracker: None,
+            initialized: false,
         }
     }
 
@@ -93,6 +98,8 @@ impl<T: Topology + Clone + 'static> HeapEntropyTracker<T> {
         self.tracker = Some(ChangeTracker::with_index_count(self.index_count));
 
         self.reset();
+
+        self.initialized = true;
 
         Ok(())
     }
@@ -145,7 +152,7 @@ impl<T: Topology + Clone> Tracker for HeapEntropyTracker<T> {
         Ok(())
     }
 
-    fn do_ban(&mut self, index: usize, pattern: usize) {
+    fn do_ban(&mut self, index: usize, pattern: usize) -> Result<(), String> {
         self.entropy_values[index].borrow_mut().decrement(
             self.frequencies[pattern],
             self.plogp[pattern],
@@ -155,9 +162,11 @@ impl<T: Topology + Clone> Tracker for HeapEntropyTracker<T> {
         if let Some(ref mut tracker) = self.tracker {
             tracker.do_ban(index, pattern);
         }
+
+        Ok(())
     }
 
-    fn undo_ban(&mut self, index: usize, pattern: usize) {
+    fn undo_ban(&mut self, index: usize, pattern: usize) -> Result<(), String> {
         self.entropy_values[index].borrow_mut().increment(
             self.frequencies[pattern],
             self.plogp[pattern],
@@ -167,6 +176,8 @@ impl<T: Topology + Clone> Tracker for HeapEntropyTracker<T> {
         if let Some(ref mut tracker) = self.tracker {
             tracker.undo_ban(index, pattern);
         }
+
+        Ok(())
     }
 }
 
@@ -180,9 +191,15 @@ impl<T: Topology + Clone + 'static> IndexPicker<T> for HeapEntropyTracker<T> {
     }
 
     fn get_random_index(&mut self, wave_propagator_state: &WavePropagatorState<T>, tile_model_mapping: &TileModelMapping<T>) -> Option<i32> {
-        let mut tracker = self.tracker.take()?;
-        let changed_indices = tracker.get_changed_indices(tile_model_mapping).unwrap_or_default();
-        self.tracker = Some(tracker);
+        let mut changed_indices: Vec<usize> = Vec::new();
+        if self.tracker.is_some() {
+            let mut tracker = self.tracker.take()?;
+            changed_indices = tracker.get_changed_indices(tile_model_mapping).unwrap_or_default();
+            self.tracker = Some(tracker);
+        } else {
+            println!("No tracker!");
+            return None;
+        }
 
         let wave = wave_propagator_state.get_wave().as_ref()?;
 

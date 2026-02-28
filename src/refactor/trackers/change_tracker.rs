@@ -88,19 +88,22 @@ impl<T: Topology + Clone> Tracker for ChangeTracker<T> {
         Ok(())
     }
 
-    fn do_ban(&mut self, index: usize, _pattern: usize) {
+    fn do_ban(&mut self, index: usize, _pattern: usize) -> Result<(), String>{
         let g = self.last_changed_generation[index];
         if g != self.generation {
             self.last_changed_generation[index] = self.generation;
             self.changed_indices.push(index);
         }
+        Ok(())
     }
 
-    fn undo_ban(&mut self, index: usize, _pattern: usize) {
+    fn undo_ban(&mut self, index: usize, _pattern: usize) -> Result<(), String>{
         let g = self.last_changed_generation[index];
         if g != self.generation {
             self.last_changed_generation[index] = self.generation;
             self.changed_indices.push(index);
         }
+        
+        Ok(())
     }
 }

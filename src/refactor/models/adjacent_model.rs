@@ -3,7 +3,7 @@ use crate::refactor::topology::direction::{
     Direction, DirectionSet, DirectionSetType,
 };
 use crate::refactor::topology::grid_topology::GridTopology;
-use crate::refactor::topology::topo_array::TopoArray;
+use crate::refactor::topology::topo_array::{DefaultTopoArray, TopoArray};
 use crate::refactor::topology::topology::Topology;
 use std::collections::{HashMap, HashSet};
 use crate::refactor::models::tile_model_mapping::TileModelMapping;
@@ -27,6 +27,8 @@ pub struct AdjacentModel {
 
     /// Don't quite know what this does yet
     propagator: Vec<Vec<HashSet<usize>>>,
+
+    sample: Box<dyn TopoArray<Tile, GridTopology>>
 }
 
 impl AdjacentModel {
@@ -37,6 +39,7 @@ impl AdjacentModel {
             tiles_to_patterns: HashMap::new(),
             frequencies: Vec::new(),
             propagator: Vec::new(),
+            sample: Box::new(DefaultTopoArray::new()),
         }
     }
 
@@ -73,6 +76,7 @@ impl AdjacentModel {
         }
     }
 
+    /// Adds the sample to the model. This will create a copy of the sample that is owned by the model.
     pub fn add_sample_simple<T: Topology>(
         &mut self,
         sample: &dyn TopoArray<Tile, GridTopology>,
@@ -149,6 +153,8 @@ impl AdjacentModel {
                 }
             }
         }
+
+        self.sample = sample.clone_box().ok_or("Sample is incompatible as it cannot be cloned into a Box")?;
 
         Ok(())
     }
@@ -506,6 +512,11 @@ impl TileModel<GridTopology> for AdjacentModel {
             patterns_to_tiles_by_offset,
         ))
     }
+
+    fn get_tile(&self, index: usize) -> Option<&Tile> {
+        self.sample.get_value_from_index(index)
+    }
+
     //
     // fn tiles(&self) -> Vec<Tile> {
     //     self.tiles_to_patterns.keys().cloned().collect()
