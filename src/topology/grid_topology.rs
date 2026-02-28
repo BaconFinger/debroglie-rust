@@ -1,6 +1,5 @@
 use std::any::Any;
 use std::fmt;
-use crate::context::TopologyId;
 use crate::topology::direction::{Direction, DirectionSet, EdgeLabel};
 use crate::topology::topology::{Topology, TopologyError};
 
@@ -16,7 +15,6 @@ pub struct GridTopology {
     periodic_y: bool,
     periodic_z: bool,
     mask: Option<Vec<bool>>,
-    key: Option<TopologyId>
 }
 
 impl GridTopology {
@@ -81,7 +79,6 @@ impl GridTopology {
             periodic_y,
             periodic_z,
             mask,
-            key: None,
         }
     }
 
@@ -116,7 +113,6 @@ impl GridTopology {
             periodic_y,
             periodic_z,
             mask,
-            key: None,
         })
     }
 
@@ -139,7 +135,6 @@ impl GridTopology {
             periodic_y: self.periodic_y,
             periodic_z: self.periodic_z,
             mask: Some(mask),
-            key: None,
         })
     }
 
@@ -154,7 +149,6 @@ impl GridTopology {
             periodic_y: self.periodic_y,
             periodic_z: self.periodic_z,
             mask: None, // Reset mask when changing size
-            key: None,
         }
     }
 
@@ -169,7 +163,6 @@ impl GridTopology {
             periodic_y,
             periodic_z,
             mask: self.mask.clone(),
-            key: None,
         }
     }
 
@@ -476,18 +469,6 @@ impl Topology for GridTopology {
 
     fn as_any(&self) -> &dyn Any {
         self
-    }
-
-    fn get_key(&self) -> Option<TopologyId> {
-        self.key.clone()
-    }
-
-    fn set_key(&mut self, key: TopologyId) {
-        if self.key.is_some() {
-            println!("Warning: topology key already set, skipping");
-            return;
-        }
-        self.key = Some(key);
     }
 }
 

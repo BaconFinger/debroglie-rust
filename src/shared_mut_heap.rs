@@ -157,7 +157,7 @@ where
     /// Called when an item's key has increased, returns the new heap_index.
     pub fn increased_key(&mut self, item_heap_index: usize) {
         if item_heap_index < self.size {
-        self.heapify_at(item_heap_index);
+            self.heapify_at(item_heap_index);
         }
     }
 
@@ -186,7 +186,7 @@ where
         self.size += 1;
         self.decreased_key(self.size - 1);
     }
-    
+
     /// Removes an item from the heap by its index
     pub fn delete(&mut self, item_heap_index: usize) {
         if item_heap_index >= self.size {

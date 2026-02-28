@@ -1,17 +1,15 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use ordered_float::OrderedFloat;
-use crate::context::{Context, TrackerId, WaveId};
+use crate::heap::HeapNode;
 use crate::shared_mut_heap::{SharedMutHeap};
-use crate::heap::{HeapNode};
 use crate::models::tile_model_mapping::TileModelMapping;
 use crate::topology::topology::Topology;
 use crate::trackers::change_tracker::ChangeTracker;
 use crate::trackers::index_picker::IndexPicker;
 use crate::trackers::pattern_picker::PatternPicker;
 use crate::trackers::tracker::{SuperTracker, Tracker};
-use crate::wfc::wave::Wave;
-use crate::wfc::wave_propagator::WavePropagator;
+use crate::wfc::wave_propagator::WavePropagatorState;
 
 pub struct HeapEntropyTracker<T: Topology + Clone> {
     pattern_count: usize,
@@ -21,46 +19,14 @@ pub struct HeapEntropyTracker<T: Topology + Clone> {
     mask: Option<Vec<bool>>,
     random_double: Option<Rc<dyn Fn() -> f64>>,
     index_count: usize,
-    wave: Option<WaveId>,
     heap: Option<SharedMutHeap<EntropyValues, OrderedFloat<f64>>>,
     tracker: Option<ChangeTracker<T>>,
-    self_ref: Option<TrackerId>,
 }
 
-impl<T: Topology + Clone> HeapEntropyTracker<T> {
-    pub fn new(ctx: &Context<T>) -> Rc<RefCell<dyn Tracker>> {
-        let me = Self {
-            pattern_count: 0,
-            frequencies: Vec::new(),
-            entropy_values: Vec::new(),
-            plogp: Vec::new(),
-            mask: None,
-            random_double: None,
-            index_count: 0,
-            wave: None,
-            heap: None,
-            tracker: None,
-            self_ref: None,
-        };
-        let self_ref = ctx.trackers().add(Rc::new(RefCell::new(me)));
-        let self_ref = ctx.trackers().get(self_ref).unwrap().clone();
-        self_ref
-    }
-
-    pub fn init() -> Self {
-        Self {
-            pattern_count: 0,
-            frequencies: Vec::new(),
-            entropy_values: Vec::new(),
-            plogp: Vec::new(),
-            mask: None,
-            random_double: None,
-            index_count: 0,
-            wave: None,
-            heap: None,
-            tracker: None,
-            self_ref: None,
-        }
+impl<T: Topology + Clone + 'static> HeapEntropyTracker<T> {
+    pub fn new() -> Box<dyn Tracker> {
+        let me = Self::new_empty();
+        Box::new(me)
     }
 
     pub fn new_empty() -> Self {
@@ -72,32 +38,22 @@ impl<T: Topology + Clone> HeapEntropyTracker<T> {
             mask: None,
             random_double: None,
             index_count: 0,
-            wave: None,
             heap: None,
             tracker: None,
-            self_ref: None,
         }
-    }
-
-    pub fn get_self_ref(&self) -> TrackerId {
-        self.self_ref.as_ref().unwrap().clone()
     }
 
     // For debugging
     pub fn init_debug(
         &mut self,
-        ctx: &Context<T>,
-        wave: Option<WaveId>,
-        frequencies: Vec<f64>,
+        wave_propagator_state: &WavePropagatorState<T>,
         mask: Option<Vec<bool>>,
-        random_double: Rc<dyn Fn() -> f64>,
     ) -> Result<(), String> {
-        self.frequencies = frequencies;
+        self.frequencies = wave_propagator_state.get_frequencies();
         self.pattern_count = self.frequencies.len();
         self.mask = mask;
-        self.random_double = Some(random_double);
-        self.wave = wave;
-        self.index_count = self.get_wave(ctx).ok_or("unable to get wave")?.borrow().indices();
+        self.random_double = Some(wave_propagator_state.get_random_double());
+        self.index_count = wave_propagator_state.get_wave().as_ref().ok_or("No wave".to_string())?.indices();
 
         // Initialize plogp
         self.plogp = vec![0.0; self.pattern_count];
@@ -109,9 +65,7 @@ impl<T: Topology + Clone> HeapEntropyTracker<T> {
 
         self.entropy_values = vec![Rc::new(RefCell::new(EntropyValues::new())); self.index_count];
         self.heap = Some(SharedMutHeap::with_capacity(self.index_count));
-        let default_mapping = TileModelMapping::default();
-        let default_mapping = ctx.tile_model_mappings().add(default_mapping);
-        self.tracker = Some(ChangeTracker::with_index_count(default_mapping, self.index_count));
+        self.tracker = Some(ChangeTracker::with_index_count(self.index_count));
 
         self.reset();
 
@@ -166,7 +120,7 @@ impl<T: Topology + Clone> Tracker for HeapEntropyTracker<T> {
         Ok(())
     }
 
-    fn do_ban(&mut self, index: usize, pattern: usize) {
+    fn do_ban(&mut self, index: usize, pattern: usize) -> Result<(), String> {
         self.entropy_values[index].borrow_mut().decrement(
             self.frequencies[pattern],
             self.plogp[pattern],
@@ -176,9 +130,11 @@ impl<T: Topology + Clone> Tracker for HeapEntropyTracker<T> {
         if let Some(ref mut tracker) = self.tracker {
             tracker.do_ban(index, pattern);
         }
+
+        Ok(())
     }
 
-    fn undo_ban(&mut self, index: usize, pattern: usize) {
+    fn undo_ban(&mut self, index: usize, pattern: usize) -> Result<(), String> {
         self.entropy_values[index].borrow_mut().increment(
             self.frequencies[pattern],
             self.plogp[pattern],
@@ -188,38 +144,34 @@ impl<T: Topology + Clone> Tracker for HeapEntropyTracker<T> {
         if let Some(ref mut tracker) = self.tracker {
             tracker.undo_ban(index, pattern);
         }
+
+        Ok(())
     }
 }
 
-impl<T: Topology + Clone> IndexPicker<T> for HeapEntropyTracker<T> {
-    /*
-    fn init(&mut self, ctx: &Context<T>, wave_propagator: &mut WavePropagator);
-    fn get_random_index(&mut self, ctx: &Context<T>, random_double: fn() -> f64) -> i32;
-     */
-    fn init(&mut self, ctx: &Context<T>, wave_propagator: &mut WavePropagator<T>) -> Result<(), String> {
-
-        // let random_double: Box<dyn Fn() -> f64> = Box::new(wave_propagator.get_random_double());
-        let topology = ctx.topologies().get(wave_propagator.topology).clone().ok_or("unable to get topology")?;
-        let mask = topology.borrow().mask();
+impl<T: Topology + Clone + 'static> IndexPicker<T> for HeapEntropyTracker<T> {
+    fn init(&mut self, wave_propagator_state: &WavePropagatorState<T>, topology: &T) -> Result<(), String> {
         self.init_debug(
-            ctx,
-            wave_propagator.get_wave_id(),
-            wave_propagator.get_frequencies(),
-            mask,
-            wave_propagator.get_random_double(),
+            wave_propagator_state,
+            topology.mask(),
         )?;
-        wave_propagator.add_tracker(self.get_self_ref());
         Ok(())
     }
 
-    fn get_random_index(&mut self, ctx: &Context<T>, _random_double: Rc<dyn Fn() -> f64>) -> Option<i32> { // HERE
-        let mut tracker = self.tracker.take()?;
-        let changed_indices = tracker.get_changed_indices(ctx).unwrap_or_default();
-        self.tracker = Some(tracker);
+    fn get_random_index(&mut self, wave_propagator_state: &WavePropagatorState<T>, tile_model_mapping: &TileModelMapping<T>) -> Option<i32> {
+        let mut changed_indices: Vec<usize> = Vec::new();
+        if self.tracker.is_some() {
+            let mut tracker = self.tracker.take()?;
+            changed_indices = tracker.get_changed_indices(tile_model_mapping).unwrap_or_default();
+            self.tracker = Some(tracker);
+        } else {
+            println!("No tracker!");
+            return None;
+        }
 
-        let wave = self.get_wave(ctx)?;
+        let wave = wave_propagator_state.get_wave().as_ref()?;
 
-        if changed_indices.len() > (wave.borrow().indices() as f64 * 0.5) as usize && changed_indices.len() > 1 {
+        if changed_indices.len() > (wave.indices() as f64 * 0.5) as usize && changed_indices.len() > 1 {
             // A lot of indices have changed
             // It's faster to rebuild the entire heap than sync it one at a time
             for &index in &changed_indices {
@@ -229,7 +181,7 @@ impl<T: Topology + Clone> IndexPicker<T> for HeapEntropyTracker<T> {
             let mut items = Vec::new();
             for index in 0..self.index_count {
                 if self.mask.as_ref().map_or(true, |m| m[index]) {
-                    let c = wave.borrow().get_pattern_count(index);
+                    let c = wave.get_pattern_count(index);
                     if c <= 1 {
                         self.entropy_values[index].borrow_mut().set_heap_index(None); // Equivalent to -1
                     } else {
@@ -245,7 +197,7 @@ impl<T: Topology + Clone> IndexPicker<T> for HeapEntropyTracker<T> {
                 let ev = &mut self.entropy_values[index];
                 ev.borrow_mut().recompute_entropy();
 
-                let c = wave.borrow().get_pattern_count(index);
+                let c = wave.get_pattern_count(index);
                 let heap = self.heap.as_mut()?; // HERE
                 // for mut heap_ev in heap.data.iter_mut() {
                 //     if heap_ev.identifier == ev.identifier {
@@ -278,21 +230,19 @@ impl<T: Topology + Clone> IndexPicker<T> for HeapEntropyTracker<T> {
         let item = mouthful.borrow_mut();
         Some(item.index.clone() as i32)
     }
-}
 
-impl<T: Topology + Clone> Default for HeapEntropyTracker<T> {
-    fn default() -> Self {
-        Self::new_empty()
+    fn as_super_tracker(&self) -> Option<&dyn SuperTracker<T>> {
+        Some(self as &dyn SuperTracker<T>)
+    }
+
+    fn as_super_tracker_mut(&mut self) -> Option<&mut dyn SuperTracker<T>> {
+        Some(self as &mut dyn SuperTracker<T>)
     }
 }
 
-impl<T : Topology + Clone> HeapEntropyTracker<T> {
-    fn get_wave(&self, ctx: &Context<T>) -> Option<Rc<RefCell<Wave>>> {
-        if self.wave.is_none() {
-            return None;
-        }
-
-        ctx.wave().get(self.wave?).clone()
+impl<T: Topology + Clone + 'static> Default for HeapEntropyTracker<T> {
+    fn default() -> Self {
+        Self::new_empty()
     }
 }
 
@@ -302,37 +252,25 @@ impl<T: Topology + Clone + 'static> HeapEntropyTracker<T> {
     }
 }
 
-impl<T: Topology + Clone> PatternPicker<T> for HeapEntropyTracker<T> {
-    fn init(&mut self, wave_propagator: &WavePropagator<T>) -> Result<(), String> {
+impl<T: Topology + Clone + 'static> PatternPicker<T> for HeapEntropyTracker<T> {
+    fn init(&mut self, wave_propagator_state: &WavePropagatorState<T>, topology: &T) -> Result<(), String> {
         unimplemented!("HeapEntropyTracker is not a PatternPicker")
     }
 
-    fn get_random_possible_pattern_at(&mut self, ctx: &Context<T>, index: usize, random_double: Rc<dyn Fn() -> f64>) -> Option<usize> {
+    fn get_random_possible_pattern_at(&mut self, index: usize, wave_propagator_state: &WavePropagatorState<T>) -> Option<usize> {
         unimplemented!("HeapEntropyTracker is not a PatternPicker")
     }
 
-    // fn set_self_ref(&mut self, self_ref: TrackerId) {
-    //     unimplemented!("HeapEntropyTracker is not a PatternPicker")
-    // }
-    //
-    // fn add_self(self, ctx: &Context<T>) -> TrackerId {
-    //     unimplemented!("HeapEntropyTracker is not a PatternPicker")
-    // }
+    fn as_super_tracker(&self) -> Option<&dyn SuperTracker<T>> {
+        Some(self as &dyn SuperTracker<T>)
+    }
+
+    fn as_super_tracker_mut(&mut self) -> Option<&mut dyn SuperTracker<T>> {
+        Some(self as &mut dyn SuperTracker<T>)
+    }
 }
 
-impl<T: Topology + Clone> SuperTracker<T> for HeapEntropyTracker<T> {
-    fn set_self_ref(&mut self, self_ref: TrackerId) {
-        self.self_ref = Some(self_ref);
-    }
-
-    fn add_self(self, ctx: &Context<T>) -> TrackerId {
-        let id = ctx.index_pickers().add(Rc::new(RefCell::new(self)));
-        let me = ctx.index_pickers().get(id).unwrap();
-        me.borrow_mut().set_self_ref(id);
-
-        id
-    }
-
+impl<T: Topology + Clone + 'static> SuperTracker<T> for HeapEntropyTracker<T> {
     fn is_index_picker(&self) -> bool {
         true
     }

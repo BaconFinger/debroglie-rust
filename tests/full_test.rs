@@ -1,7 +1,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Mutex;
-use debroglie_rust::context::Context;
 use debroglie_rust::models::adjacent_model::AdjacentModel;
 use debroglie_rust::resolution::Resolution;
 use debroglie_rust::tile::{Tile, TileVisual, ToTile};
@@ -14,46 +13,10 @@ use debroglie_rust::topology::topo_array::TopoArray;
 #[cfg(test)]
 
 #[test]
-pub fn test_rng_outputs() {
-    let cs = [
-        "0.3286364133429067",
-        "0.7824954060203275",
-        "0.14642473965720237",
-        "0.5659021480618759",
-        "0.2598910905544348",
-        "0.33108426512400624",
-        "0.9020299408067738",
-        "0.3494575854319545",
-        "0.23938741509007289",
-        "0.26160627535898817",
-    ];
-    let rs = [
-        "0.3286364133429067",
-        "0.7824954060203275",
-        "0.14642473965720237",
-        "0.5659021480618759",
-        "0.2598910905544348",
-        "0.33108426512400624",
-        "0.9020299408067738",
-        "0.3494575854319545",
-        "0.23938741509007289",
-        "0.26160627535898817",
-    ];
-
-    for (c, r) in cs.iter().zip(rs.iter()) {
-        assert_eq!(c, r);
-    }
-}
-
-const width: usize = 5;
-const height: usize = 5;
-
-#[test]
-pub fn full_test() {
+pub fn full_test_refactor() {
     // Arrange
-
-    let ctx: Context<GridTopology> = Context::new();
-
+    let width = 5;
+    let height = 5;
     let initial_data = vec![
         vec!['_', '_', '_'],
         vec!['_', '*', '_'],
@@ -68,16 +31,13 @@ pub fn full_test() {
             .collect::<Vec<Tile>>()
         )
         .collect::<Vec<Vec<Tile>>>();
-    let initial_vec = ctx.tiles().add_vec_2d(initial_vec);
 
     let topology = GridTopology::new_2d(width, height, false);
-    let topology = ctx.topologies().add(topology);
 
-    let sample = RaggedTopoArray2D::new(&ctx, initial_vec, false);
+    let sample = RaggedTopoArray2D::new(initial_vec, false);
 
     let mut model = AdjacentModel::new();
-    model.add_sample_simple(&ctx, &sample).unwrap();
-    let model = ctx.models().add(Rc::new(RefCell::new(model)));
+    model.add_sample_simple::<GridTopology>(&sample).unwrap();
 
     let rng = Mutex::new(Pcg32::new(12345));
     let random_double = Rc::new(move || {
@@ -88,18 +48,18 @@ pub fn full_test() {
 
     let mut tile_propagator_options = TilePropagatorOptions::new(true, Some(random_double), None);
     tile_propagator_options.backtrack = BacktrackType::Backjump;
+    let model = Box::new(model);
 
     // Act
-    let tile_propagator = TilePropagator::with_options(&ctx, model.clone(), topology.clone(), tile_propagator_options).unwrap();
-    let tile_propagator = ctx.tile_propagators().get(tile_propagator).unwrap();
-    let status = tile_propagator.borrow_mut().run(&ctx).unwrap();
+    let mut tile_propagator = TilePropagator::with_options(model, topology.clone(), tile_propagator_options).unwrap();
+    let status = tile_propagator.run().unwrap();
     assert_ne!(status, Resolution::Contradiction);
 
-    let output = tile_propagator.borrow().to_value_array(&ctx);
+    let output = tile_propagator.to_value_array();
     assert!(output.is_ok());
 
     // Assert
-    let output_visuals = output_to_visuals(&ctx, output.unwrap());
+    let output_visuals = output_to_visuals(output.unwrap());
     // debug_print_output(&output_visuals);
 
     let expected_output = vec![
@@ -124,9 +84,8 @@ pub fn full_test() {
 pub fn speed_test() {
     // Arrange
     let start = std::time::Instant::now();
-    let local_width = 200;
-    let local_height = 200;
-    let ctx: Context<GridTopology> = Context::new();
+    let width = 200;
+    let height = 200;
 
     let initial_data = vec![
         vec!['_', '_', '_'],
@@ -142,16 +101,13 @@ pub fn speed_test() {
             .collect::<Vec<Tile>>()
         )
         .collect::<Vec<Vec<Tile>>>();
-    let initial_vec = ctx.tiles().add_vec_2d(initial_vec);
 
-    let topology = GridTopology::new_2d(local_width, local_height, false);
-    let topology = ctx.topologies().add(topology);
+    let topology = GridTopology::new_2d(width, height, false);
 
-    let sample = RaggedTopoArray2D::new(&ctx, initial_vec, false);
+    let sample = RaggedTopoArray2D::new(initial_vec, false);
 
     let mut model = AdjacentModel::new();
-    model.add_sample_simple(&ctx, &sample).unwrap();
-    let model = ctx.models().add(Rc::new(RefCell::new(model)));
+    model.add_sample_simple::<GridTopology>(&sample).unwrap();
 
     let rng = Mutex::new(Pcg32::new(12345));
     let random_double = Rc::new(move || {
@@ -162,43 +118,34 @@ pub fn speed_test() {
 
     let mut tile_propagator_options = TilePropagatorOptions::new(true, Some(random_double), None);
     tile_propagator_options.backtrack = BacktrackType::Backjump;
+    let model = Box::new(model);
 
     // Act
-    let tile_propagator = TilePropagator::with_options(&ctx, model.clone(), topology.clone(), tile_propagator_options).unwrap();
-    let tile_propagator = ctx.tile_propagators().get(tile_propagator).unwrap();
-    let status = tile_propagator.borrow_mut().run(&ctx).unwrap();
+    let mut tile_propagator = TilePropagator::with_options(model, topology.clone(), tile_propagator_options).unwrap();
+    let status = tile_propagator.run().unwrap();
     assert_ne!(status, Resolution::Contradiction);
 
-    let output = tile_propagator.borrow().to_value_array(&ctx);
+    let output = tile_propagator.to_value_array();
     assert!(output.is_ok());
 
     let end = std::time::Instant::now();
     println!("Time elapsed: {:?}", end - start);
 }
 
-pub(crate) fn output_to_visuals(ctx: &Context<GridTopology>, output_result: Box<dyn TopoArray<TileVisual, GridTopology>>) -> Vec<Vec<TileVisual>> {
+fn output_to_visuals(output_result: Box<dyn TopoArray<TileVisual, GridTopology>>) -> Vec<Vec<TileVisual>> {
     let mut output_visuals: Vec<Vec<TileVisual>> = vec![Vec::new(); 0];
-    for y in 0..height {
+    for y in 0..5 {
         if output_visuals.len() < y + 1 {
             output_visuals.push(Vec::new());
         }
-        for x in 0..width {
-            let output_visual = output_result.get_coord_2d(&ctx, x, y);
+        for x in 0..5 {
+            let output_visual = output_result.get_coord_2d(x, y);
             // print!("{}", output_visual.unwrap());
             output_visuals[y].push(output_visual.unwrap().clone());
         }
         println!();
     }
     output_visuals
-}
-
-pub(crate) fn debug_print_output(output_visuals: &Vec<Vec<TileVisual>>) {
-    for y in output_visuals.iter() {
-        for x in y.iter() {
-            print!("{}", x);
-        }
-        println!();
-    }
 }
 
 /// Just for testing that the C# and Rust implementations produce the same output.

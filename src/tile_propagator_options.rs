@@ -2,7 +2,8 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
-use crate::context::{ConstraintId, TileId};
+use crate::constraints::tile_constraint::TileConstraint;
+use crate::tile::TileId;
 use crate::tile_propagator::DummyTopoArray;
 use crate::topology::topo_array::TopoArray;
 use crate::topology::topology::Topology;
@@ -71,7 +72,7 @@ pub struct TilePropagatorOptions<V, T: Topology + Clone>
     pub max_backtrack_depth: i32,
 
     /// Extra constraints to control the generation process
-    pub constraints: Vec<ConstraintId>,
+    pub constraints: Vec<Box<dyn TileConstraint<T>>>,
 
     /// Source of randomness used by generation.
     /// A lot of randomness implementations that support seeding will mutate the underlying
@@ -90,13 +91,13 @@ pub struct TilePropagatorOptions<V, T: Topology + Clone>
     /// Overrides the weights set from the model, on a per-position basis.
     /// The integers correspond to entries in WeightSets
     /// Only used by <see cref="IndexPickerType.ArrayPriorityMinEntropy"/> and <see cref="TilePickerType.ArrayPriority"/>
-    pub weight_set_by_index: Arc<Mutex<Box<dyn TopoArray<V, T>>>>,
+    pub weight_set_by_index: Arc<Mutex<Box<dyn TopoArray<V, T>>>>, // TODO: ArcMutex bad
 
     /// The weights sets reference by WeightSetByIndex
     pub weight_sets: HashMap<i32, HashMap<TileId, PriorityAndWeight>>,
 
     /// Only used by <see cref="IndexPickerType.Dirty"/>
-    pub clean_tiles: Arc<Mutex<Box<dyn TopoArray<TileId, T>>>>,
+    pub clean_tiles: Arc<Mutex<Box<dyn TopoArray<TileId, T>>>>, // TODO: ArcMutex bad
 
     /// Only used by <see cref="IndexPickerType.Ordered"/>
     pub index_order: Vec<i32>,
@@ -112,14 +113,14 @@ impl <V: Clone + 'static, T: Topology + Clone> Debug for TilePropagatorOptions<V
     }
 }
 
-impl<V: Clone + 'static, T: Topology + Clone> TilePropagatorOptions<V, T> {
-    pub fn new(backtrack: bool, random_double: Option<Rc<dyn Fn() -> f64>>, constraints: Option<Vec<ConstraintId>>,) -> Self {
+impl<V: Clone + 'static, T: Topology + Clone + 'static> TilePropagatorOptions<V, T> {
+    pub fn new(backtrack: bool, random_double: Option<Rc<dyn Fn() -> f64>>, constraints: Option<Vec<Box<dyn TileConstraint<T>>>>,) -> Self {
         Self {
             backtrack: if backtrack { BacktrackType::Backtrack } else { BacktrackType::None },
             max_backtrack_depth: 0,
             constraints: constraints.unwrap_or(Vec::new()),
             random_double: random_double.unwrap_or(Rc::new(|| {
-                
+
                 use std::hash::{Hash, Hasher};
                 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -147,7 +148,6 @@ impl<V: Clone + 'static, T: Topology + Clone> TilePropagatorOptions<V, T> {
 mod tests {
     use crate::topology::grid_topology::GridTopology;
     use super::*;
-    
 
     #[test]
     fn includes_default_random_func() {

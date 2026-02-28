@@ -1,74 +1,87 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-use crate::context::{Context, TopologyId};
-use crate::topology::grid_topology::GridTopology;
-use crate::topology::ragged_topology_array_2d::{RaggedTopoArray2D, RaggedTopoArray2DGeneric};
+use std::marker::PhantomData;
+use crate::topology::ragged_topology_array_2d::RaggedTopoArray2D;
 use crate::topology::topology::{Topology, TopologyError};
 
 /// A read-only array coupled with a specific Topology
-pub trait TopoArray<T, Topo: Topology + Clone> {
-    /// Gets the Topology associated with an array
-    fn topology(&self, ctx: &Context<Topo>) -> Option<Rc<RefCell<Topo>>>;
+pub trait TopoArray<T: Clone + 'static, Topo: Topology + Clone> {
+    fn topology(&self) -> Option<&Topo>;
 
     /// Gets the value at a particular location.
-    fn get_coord(&self, ctx: &Context<Topo>, x: usize, y: usize, z: usize) -> Result<&T, TopologyError> {
+    fn get_coord(&self, x: usize, y: usize, z: usize) -> Result<&T, TopologyError> {
         let index = self
-            .topology(ctx)
+            .topology()
             .ok_or(TopologyError::Other("unable to get topology".to_string()))
-            ?.borrow()
-            .get_index(x, y, z)?;
-        self.get_index(ctx, index)
+            ?.get_index(x, y, z)?;
+        self.get_index(index)
     }
 
+    // /// Gets the value at a particular location.
+    // fn get_coord_with_index(&self, x: usize, y: usize, z: usize) -> Result<(&T, usize), TopologyError>;
+
     /// Gets the value at a particular location (2D convenience method)
-    fn get_coord_2d(&self, ctx: &Context<Topo>, x: usize, y: usize) -> Result<&T, TopologyError> {
-        self.get_coord(ctx, x, y, 0)
+    fn get_coord_2d(&self, x: usize, y: usize) -> Result<&T, TopologyError> {
+        self.get_coord(x, y, 0)
     }
 
     /// Gets the value at a particular location.
     /// See Topology to see how location indices work.
-    fn get_index(&self, ctx: &Context<Topo>, index: usize) -> Result<&T, TopologyError>;
+    fn get_index(&self, index: usize) -> Result<&T, TopologyError>;
 
     /// Gets the total number of elements
-    fn len(&self, ctx: &Context<Topo>) -> Option<usize> {
-        Some(self.topology(ctx)?.borrow().index_count())
+    fn len(&self, topology: &Topo) -> Option<usize> {
+        Some(topology.index_count())
     }
 
     /// Returns true if the array is empty
-    fn is_empty(&self, ctx: &Context<Topo>) -> bool {
-        self.len(ctx).unwrap_or(0) == 0
+    fn is_empty(&self, topology: &Topo) -> bool {
+        self.len(topology).unwrap_or(0) == 0
     }
+
+    fn get_value_from_index(&self, index: usize) -> Option<&T>;
+    fn get_value_from_coord(&self, x: usize, y: usize, z: usize) -> Option<&T>;
+
+    fn get_id_from_index(&self, index: usize) -> Option<usize>;
+    fn get_id_from_coord(&self, x: usize, y: usize, z: usize) -> Option<usize>;
+    fn clone_box(&self) -> Option<Box<dyn TopoArray<T, Topo>>>;
+}
+
+pub trait TopoArray1D<T, Topo: Topology + Clone> {
+    fn get_contents(&self) -> &Vec<T>;
+}
+
+pub trait TopoArray2D<T, Topo: Topology + Clone> {
+    fn get_contents(&self) -> &Vec<Vec<T>>;
+}
+
+pub trait TopoArray3D<T, Topo: Topology + Clone> {
+    fn get_contents(&self) -> &Vec<Vec<Vec<T>>>;
 }
 
 /// A mutable array coupled with a specific Topology
-pub trait TopoArrayMut<T, Topo: Topology + Clone>: TopoArray<T, Topo> {
+pub trait TopoArrayMut<T: Clone + 'static, Topo: Topology + Clone>: TopoArray<T, Topo> {
     /// Sets the value at a particular location.
-    fn set_coord(&mut self, ctx: &Context<Topo>, x: usize, y: usize, z: usize, value: T) -> Result<(), TopologyError> {
-        let index = self.topology(ctx).ok_or(TopologyError::Other("unable to get topology".to_string()))?.borrow().get_index(x, y, z)?;
+    fn set_coord(&mut self, topology: &Topo, x: usize, y: usize, z: usize, value: T) -> Result<(), TopologyError> {
+        let index = topology.get_index(x, y, z)?;
         self.set_index(index, value)
     }
 
     /// Sets the value at a particular location (2D convenience method)
-    fn set_coord_2d(&mut self, ctx: &Context<Topo>, x: usize, y: usize, value: T) -> Result<(), TopologyError> {
-        self.set_coord(ctx, x, y, 0, value)
+    fn set_coord_2d(&mut self, topology: &Topo, x: usize, y: usize, value: T) -> Result<(), TopologyError> {
+        self.set_coord(topology, x, y, 0, value)
     }
 
     /// Sets the value at a particular location.
     fn set_index(&mut self, index: usize, value: T) -> Result<(), TopologyError>;
 
     /// Gets a mutable reference to the value at a particular location.
-    fn get_mut_coord(&mut self, ctx: &Context<Topo>, x: usize, y: usize, z: usize) -> Result<&mut T, TopologyError> {
-        let index = self
-            .topology(ctx)
-            .ok_or(TopologyError::Other("unable to get topology".to_string()))
-            ?.borrow()
-            .get_index(x, y, z)?;
+    fn get_mut_coord(&mut self, topology: &Topo, x: usize, y: usize, z: usize) -> Result<&mut T, TopologyError> {
+        let index = topology.get_index(x, y, z)?;
         self.get_mut_index(index)
     }
 
     /// Gets a mutable reference to the value at a particular location (2D convenience method)
-    fn get_mut_coord_2d(&mut self, ctx: &Context<Topo>, x: usize, y: usize) -> Result<&mut T, TopologyError> {
-        self.get_mut_coord(ctx, x, y, 0)
+    fn get_mut_coord_2d(&mut self, topology: &Topo, x: usize, y: usize) -> Result<&mut T, TopologyError> {
+        self.get_mut_coord(topology, x, y, 0)
     }
 
     /// Gets a mutable reference to the value at a particular location.
@@ -84,12 +97,12 @@ impl TopologyArray {
     // pub fn create<T, Topo: Topology>(values: Vec<T>, topology: Topo) -> crate::procedural_generation::debroglie_scuffed::topology::topo_array_1d::TopoArray1D<T, Topo> {
     //     crate::procedural_generation::debroglie_scuffed::topology::topo_array_1d::TopoArray1D::new(values, topology)
     // }
-    // 
+    //
     // /// Constructs a TopoArray from a 2D vector. `result.get(x, y) == values[x][y]`
     // pub fn create_2d<T>(values: Vec<Vec<T>>, periodic: bool) -> crate::procedural_generation::debroglie_scuffed::topology::topo_array_2d::TopoArray2D<T, crate::procedural_generation::debroglie_scuffed::topology::grid_topology::GridTopology> {
     //     crate::procedural_generation::debroglie_scuffed::topology::topo_array_2d::TopoArray2D::new(values, periodic)
     // }
-    // 
+    //
     // /// Constructs a TopoArray from a 2D vector with explicit topology. `result.get(x, y) == values[x][y]`
     // pub fn create_2d_with_topology<T, Topo: Topology>(values: Vec<Vec<T>>, topology: Topo) -> crate::procedural_generation::debroglie_scuffed::topology::topo_array_2d::TopoArray2D<T, Topo> {
     //     crate::procedural_generation::debroglie_scuffed::topology::topo_array_2d::TopoArray2D::with_topology(values, topology)
@@ -97,30 +110,30 @@ impl TopologyArray {
 
     /// Constructs a TopoArray from a jagged vector. `result.get(x, y) == values[y][x]`
     /// Note: This follows the C# convention where jagged arrays are accessed as values[y][x]
-    pub fn create_jagged<T>(ctx: &Context<GridTopology>, values: Vec<Vec<T>>, periodic: bool) -> RaggedTopoArray2D<T> {
-        RaggedTopoArray2D::new(ctx, values, periodic)
+    pub fn create_jagged<T: Clone>(values: Vec<Vec<T>>, periodic: bool) -> RaggedTopoArray2D<T> {
+        RaggedTopoArray2D::new(values, periodic)
     }
 
-    /// Constructs a TopoArray from a jagged vector with explicit topology. `result.get(x, y) == values[y][x]`
-    pub fn create_jagged_with_topology<T, Topo: Topology + Clone>(values: Vec<Vec<T>>, topology: TopologyId) -> RaggedTopoArray2DGeneric<T, Topo> {
-        RaggedTopoArray2D::with_topology(values, topology)
-    }
+    // /// Constructs a TopoArray from a jagged vector with explicit topology. `result.get(x, y) == values[y][x]`
+    // pub fn create_jagged_with_topology<T, Topo: Topology + Clone>(values: Vec<Vec<T>>, topology: &Topo) -> RaggedTopoArray2DGeneric<T, Topo> {
+    //     RaggedTopoArray2D::with_topology(values, topology)
+    // }
 
     // /// Constructs a TopoArray from a 3D vector. `result.get(x, y, z) == values[x][y][z]`
     // pub fn create_3d<T>(values: Vec<Vec<Vec<T>>>, periodic: bool) -> crate::procedural_generation::debroglie_scuffed::topology::topo_array_3d::TopoArray3D<T, crate::procedural_generation::debroglie_scuffed::topology::grid_topology::GridTopology> {
     //     crate::procedural_generation::debroglie_scuffed::topology::topo_array_3d::TopoArray3D::new(values, periodic)
     // }
-    // 
+    //
     // /// Constructs a TopoArray from a 3D vector with explicit topology. `result.get(x, y, z) == values[x][y][z]`
     // pub fn create_3d_with_topology<T, Topo: Topology>(values: Vec<Vec<Vec<T>>>, topology: Topo) -> crate::procedural_generation::debroglie_scuffed::topology::topo_array_3d::TopoArray3D<T, Topo> {
     //     crate::procedural_generation::debroglie_scuffed::topology::topo_array_3d::TopoArray3D::with_topology(values, topology)
     // }
-    // 
+    //
     // /// Constructs a TopoArray with a constant value for all positions
     // pub fn from_constant<T, Topo: Topology>(value: T, topology: Topo) -> crate::procedural_generation::debroglie_scuffed::topology::topo_array_constant::TopoArrayConstant<T, Topo> {
     //     crate::procedural_generation::debroglie_scuffed::topology::topo_array_constant::TopoArrayConstant::new(value, topology)
     // }
-    // 
+    //
     // /// Constructs a TopoArray by invoking f at each location in the topology.
     // pub fn create_by_point<T, Topo>(f: fn(crate::procedural_generation::debroglie_scuffed::point::Point<i32>) -> T, topology: Topo) -> crate::procedural_generation::debroglie_scuffed::topology::topo_array_3d::TopoArray3D<T, Topo>
     // where
@@ -130,9 +143,9 @@ impl TopologyArray {
     //     let width = topology.width();
     //     let height = topology.height();
     //     let depth = topology.depth();
-    // 
+    //
     //     let mut values = vec![vec![vec![T::default(); depth]; height]; width];
-    // 
+    //
     //     for z in 0..depth {
     //         for y in 0..height {
     //             for x in 0..width {
@@ -144,28 +157,71 @@ impl TopologyArray {
     //             }
     //         }
     //     }
-    // 
+    //
     //     crate::procedural_generation::debroglie_scuffed::topology::topo_array_3d::TopoArray3D::with_topology(values, topology)
     // }
-    // 
+    //
     // /// Constructs a TopoArray by invoking f at each index in the topology.
     // pub fn create_by_index<T, Topo>(f: fn(usize) -> T, topology: Topo) -> crate::procedural_generation::debroglie_scuffed::topology::topo_array_1d::TopoArray1D<T, Topo>
     // where
     //     Topo: Topology + crate::procedural_generation::debroglie_scuffed::topology::topology_extensions::TopologyExtensions,
     // {
     //     let mut values = Vec::with_capacity(topology.index_count());
-    // 
+    //
     //     // Get all valid indices from the topology
     //     for index in topology.get_indices() {
     //         values.push(f(index));
     //     }
-    // 
+    //
     //     // If the topology has fewer valid indices than the total count,
     //     // we need to fill the vector to match the topology's index_count
     //     while values.len() < topology.index_count() {
     //         values.push(f(values.len()));
     //     }
-    // 
+    //
     //     crate::procedural_generation::debroglie_scuffed::topology::topo_array_1d::TopoArray1D::new(values, topology)
     // }
+}
+
+pub struct DefaultTopoArray<T, TTopo: Topology + Clone> {
+    _phantom: PhantomData<(T, TTopo)>
+}
+
+impl<T, TTopo: Topology + Clone> DefaultTopoArray<T, TTopo> {
+    pub fn new() -> DefaultTopoArray<T, TTopo> {
+        DefaultTopoArray { _phantom: PhantomData }
+    }
+}
+impl<T: Clone + 'static, TTopo: Topology + Clone + 'static> TopoArray<T, TTopo> for DefaultTopoArray<T, TTopo> {
+    fn topology(&self) -> Option<&TTopo> {
+        unimplemented!("DefaultTopoArray is a default value and should not be used")
+    }
+
+    fn get_coord(&self, x: usize, y: usize, z: usize) -> Result<&T, TopologyError> {
+        unimplemented!("DefaultTopoArray is a default value and should not be used")
+    }
+
+    fn get_index(&self, index: usize) -> Result<&T, TopologyError> {
+        unimplemented!("DefaultTopoArray is a default value and should not be used")
+    }
+
+    fn get_value_from_index(&self, index: usize) -> Option<&T> {
+        unimplemented!("DefaultTopoArray is a default value and should not be used")
+    }
+
+    fn get_value_from_coord(&self, x: usize, y: usize, z: usize) -> Option<&T> {
+        unimplemented!("DefaultTopoArray is a default value and should not be used")
+    }
+
+    fn get_id_from_index(&self, index: usize) -> Option<usize> {
+        unimplemented!("DefaultTopoArray is a default value and should not be used")
+    }
+
+    fn get_id_from_coord(&self, x: usize, y: usize, z: usize) -> Option<usize> {
+        unimplemented!("DefaultTopoArray is a default value and should not be used")
+    }
+
+    fn clone_box(&self) -> Option<Box<dyn TopoArray<T, TTopo>>> {
+        None
+    }
 }
