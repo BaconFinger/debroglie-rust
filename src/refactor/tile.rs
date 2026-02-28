@@ -1,8 +1,7 @@
 use std::fmt;
 use std::fmt::{Debug, Display};
 use std::hash::Hasher;
-use image::{Pixel, Rgba, RgbaImage};
-use serde_derive::{Deserialize, Serialize};
+use image::{Pixel, Rgba};
 
 static mut COUNTER: usize = 0;
 

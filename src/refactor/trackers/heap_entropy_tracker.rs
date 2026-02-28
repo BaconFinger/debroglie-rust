@@ -9,8 +9,7 @@ use crate::refactor::trackers::change_tracker::ChangeTracker;
 use crate::refactor::trackers::index_picker::IndexPicker;
 use crate::refactor::trackers::pattern_picker::PatternPicker;
 use crate::refactor::trackers::tracker::{SuperTracker, Tracker};
-use crate::refactor::wfc::wave::Wave;
-use crate::refactor::wfc::wave_propagator::{WavePropagator, WavePropagatorState};
+use crate::refactor::wfc::wave_propagator::WavePropagatorState;
 
 pub struct HeapEntropyTracker<T: Topology + Clone> {
     pattern_count: usize,
@@ -22,40 +21,12 @@ pub struct HeapEntropyTracker<T: Topology + Clone> {
     index_count: usize,
     heap: Option<SharedMutHeap<EntropyValues, OrderedFloat<f64>>>,
     tracker: Option<ChangeTracker<T>>,
-
-    initialized: bool, // TODO: Remove
 }
 
 impl<T: Topology + Clone + 'static> HeapEntropyTracker<T> {
     pub fn new() -> Box<dyn Tracker> {
-        let me = Self {
-            pattern_count: 0,
-            frequencies: Vec::new(),
-            entropy_values: Vec::new(),
-            plogp: Vec::new(),
-            mask: None,
-            random_double: None,
-            index_count: 0,
-            heap: None,
-            tracker: None,
-            initialized: false,
-        };
+        let me = Self::new_empty();
         Box::new(me)
-    }
-
-    pub fn init() -> Self {
-        Self {
-            pattern_count: 0,
-            frequencies: Vec::new(),
-            entropy_values: Vec::new(),
-            plogp: Vec::new(),
-            mask: None,
-            random_double: None,
-            index_count: 0,
-            heap: None,
-            tracker: None,
-            initialized: false,
-        }
     }
 
     pub fn new_empty() -> Self {
@@ -69,7 +40,6 @@ impl<T: Topology + Clone + 'static> HeapEntropyTracker<T> {
             index_count: 0,
             heap: None,
             tracker: None,
-            initialized: false,
         }
     }
 
@@ -98,8 +68,6 @@ impl<T: Topology + Clone + 'static> HeapEntropyTracker<T> {
         self.tracker = Some(ChangeTracker::with_index_count(self.index_count));
 
         self.reset();
-
-        self.initialized = true;
 
         Ok(())
     }

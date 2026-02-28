@@ -1,5 +1,4 @@
 use crate::refactor::topology::topology::Topology;
-use crate::refactor::trackers::heap_entropy_tracker::HeapEntropyTracker;
 use crate::refactor::trackers::index_picker::IndexPicker;
 use crate::refactor::trackers::pattern_picker::PatternPicker;
 

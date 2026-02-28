@@ -1,6 +1,3 @@
-use std::cell::RefCell;
-use std::marker::PhantomData;
-use std::rc::Rc;
 use crate::refactor::topology::topo_array::TopoArray;
 use crate::refactor::topology::topology::{Topology, TopologyError};
 

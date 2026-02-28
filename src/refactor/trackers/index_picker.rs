@@ -1,8 +1,7 @@
-use std::rc::Rc;
 use crate::refactor::models::tile_model_mapping::TileModelMapping;
 use crate::refactor::topology::topology::Topology;
 use crate::refactor::trackers::tracker::SuperTracker;
-use crate::refactor::wfc::wave_propagator::{WavePropagator, WavePropagatorState};
+use crate::refactor::wfc::wave_propagator::WavePropagatorState;
 
 pub trait IndexPicker<T: Topology + Clone> {
     fn init(&mut self, wave_propagator_state: &WavePropagatorState<T>, topology: &T) -> Result<(), String>;

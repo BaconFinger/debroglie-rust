@@ -1,12 +1,7 @@
-use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::mem;
-use std::ops::Index;
 use std::rc::Rc;
-use std::time::{Instant};
-use image::imageops::tile;
-use serde_json::ser::State;
 use crate::refactor::models::tile_model_mapping::TileModelMapping;
 use crate::refactor::resolution::Resolution;
 use crate::refactor::tile_propagator::TilePropagatorState;
@@ -254,22 +249,17 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
         let picker_ref = &mut *self.pattern_picker;
         PatternPicker::init(picker_ref, &self.state, tile_propagator_state.get_topology())?;
 
-        if self.backtrack_policy.is_some() {
-            unsafe { // TODO: Fix this for real by not adding the policy to the choice observers.
-                let mut policy_ptr: *mut dyn BacktrackPolicy<T> = match self.backtrack_policy.as_deref_mut() {
-                    Some(b) => b as *mut dyn BacktrackPolicy<T>,
-                    None => panic!("backtrack_policy is None"), // Can't happen because check above
-                };
-
-                (*policy_ptr).init(self)?;
-            }
+        if let Some(mut policy) = self.backtrack_policy.take() {
+            let res = policy.init(self);
+            self.backtrack_policy = Some(policy);
+            res?
         }
         // if let Some(ref mut policy) = self.backtrack_policy {
         //     policy.init(self)?;
         // }
 
         let mut pattern_model_constraint_owner = mem::replace(&mut self.pattern_model_constraint, Box::new(OneStepPatternModelConstraint));;
-        let mut pattern_model_constraint: &mut dyn PatternModelConstraint<T> = &mut *pattern_model_constraint_owner;
+        let pattern_model_constraint: &mut dyn PatternModelConstraint<T> = &mut *pattern_model_constraint_owner;
         let result = pattern_model_constraint.clear(tile_propagator_state.get_topology(), &self.state)?;
         if result.is_some() {
             let (idx_to_ban, pattern_to_ban) = result.unwrap(); // Safe because checked above
@@ -315,7 +305,7 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
 
     pub fn step(&mut self, tile_model_mapping: &TileModelMapping<T>, topology: &T) -> Result<Resolution, String> {
         let mut pattern_model_constraint_owner = mem::replace(&mut self.pattern_model_constraint, Box::new(OneStepPatternModelConstraint));;
-        let mut pattern_model_constraint: &mut dyn PatternModelConstraint<T> = &mut *pattern_model_constraint_owner;
+        let pattern_model_constraint: &mut dyn PatternModelConstraint<T> = &mut *pattern_model_constraint_owner;
         // println!("wave_propagator.step");
         // Check if we need to step constraints
         if self.deferred_constraints_step {

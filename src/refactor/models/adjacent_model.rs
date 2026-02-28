@@ -581,7 +581,7 @@ impl AdjacentModel {
 }
 
 mod tests {
-    use crate::context::Context;
+    
     use crate::refactor::tile::ToTile;
     use crate::refactor::topology::direction::DirectionSetType::Cartesian2d;
     use crate::refactor::topology::ragged_topology_array_2d::RaggedTopoArray2D;

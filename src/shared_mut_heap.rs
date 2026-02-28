@@ -168,7 +168,7 @@ where
     }
 
     /// Inserts a new item into the heap
-    pub fn insert(&mut self, mut item: Rc<RefCell<T>>) {
+    pub fn insert(&mut self, item: Rc<RefCell<T>>) {
         // Ensure capacity
         if self.data.len() == self.size {
             self.data.reserve(std::cmp::max(1, self.size));

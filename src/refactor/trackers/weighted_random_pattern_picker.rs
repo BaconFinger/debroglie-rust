@@ -1,13 +1,11 @@
-use std::cell::RefCell;
 use std::marker::PhantomData;
-use std::rc::Rc;
 use crate::refactor::models::tile_model_mapping::TileModelMapping;
 use crate::refactor::topology::topology::Topology;
 use crate::refactor::trackers::index_picker::IndexPicker;
 use crate::refactor::trackers::pattern_picker::PatternPicker;
 use crate::refactor::trackers::random_picker_utils::RandomPickerUtils;
 use crate::refactor::trackers::tracker::{SuperTracker, Tracker};
-use crate::refactor::wfc::wave_propagator::{WavePropagator, WavePropagatorState};
+use crate::refactor::wfc::wave_propagator::WavePropagatorState;
 
 #[derive(Default)]
 pub struct WeightedRandomPatternPicker<T: Topology + Clone> {

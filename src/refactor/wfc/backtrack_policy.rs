@@ -1,6 +1,4 @@
-use std::cell::RefCell;
 use std::marker::PhantomData;
-use std::rc::Rc;
 use crate::refactor::topology::topology::Topology;
 use crate::refactor::trackers::tracker::ChoiceObserver;
 use crate::refactor::wfc::wave_propagator::WavePropagator;

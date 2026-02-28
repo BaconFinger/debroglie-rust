@@ -1,5 +1,3 @@
-use std::cell::{RefCell};
-use std::rc::Rc;
 use crate::refactor::resolution::Resolution;
 use crate::refactor::topology::direction::Direction;
 use crate::refactor::topology::topology::Topology;

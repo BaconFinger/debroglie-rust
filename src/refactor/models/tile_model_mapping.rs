@@ -3,7 +3,6 @@ use std::sync::{Arc, LazyLock, Mutex};
 use crate::refactor::point::Point;
 use crate::refactor::tile::{Tile, TileId};
 use crate::refactor::tile_propagator_tile_set::TilePropagatorTileSet;
-use crate::refactor::topology::grid_topology::GridTopology;
 use crate::refactor::topology::topo_array::TopoArray;
 use crate::refactor::topology::topology::Topology;
 use crate::refactor::wfc::pattern_model::PatternModel;

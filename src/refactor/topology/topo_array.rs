@@ -1,8 +1,5 @@
 use std::marker::PhantomData;
-use std::rc::Rc;
-use crate::context::Context;
-use crate::refactor::topology::grid_topology::GridTopology;
-use crate::refactor::topology::ragged_topology_array_2d::{RaggedTopoArray2D, RaggedTopoArray2DGeneric};
+use crate::refactor::topology::ragged_topology_array_2d::RaggedTopoArray2D;
 use crate::refactor::topology::topology::{Topology, TopologyError};
 
 /// A read-only array coupled with a specific Topology

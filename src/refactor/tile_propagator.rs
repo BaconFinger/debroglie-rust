@@ -102,7 +102,6 @@ where T: Topology + Clone + 'static
         topology: T,
         options: TilePropagatorOptions<i32, T>,
     ) -> Result<Self, String> {
-        // panic!("with_options not implemented");
         let tile_model_mapping = tile_model.get_tile_model_mapping(&topology)?;
         let pattern_model = tile_model_mapping.pattern_model.clone();
 
@@ -139,9 +138,6 @@ where T: Topology + Clone + 'static
 
         Ok(Self {
             wave_propagator,
-            // topology,
-            // tile_model,
-            // tile_model_mapping,
             state,
         })
     }
@@ -180,7 +176,6 @@ where T: Topology + Clone + 'static
 
         match options.index_picker_type {
             IndexPickerType::Ordered => {
-                panic!("NYI!");
                 todo!("implement");
                 // if !options.index_order.is_empty() {
                 //     println!("OrderedIndexPicker"); // TODO: Remove
@@ -193,7 +188,6 @@ where T: Topology + Clone + 'static
                 // }
             },
             IndexPickerType::ArrayPriorityMinEntropy => {
-                panic!("NYI");
                 todo!("implement");
                 // if options.weight_set_by_index.lock().is_err() {
                 //     return Err("Expected WeightSetByIndex and WeightSets to be set".to_string());
@@ -220,11 +214,10 @@ where T: Topology + Clone + 'static
             },
             IndexPickerType::Default | IndexPickerType::HeapMinEntropy => {
                 // println!("HeapEntropyTracker"); // TODO: Remove
-                let ip = HeapEntropyTracker::init();
+                let ip = HeapEntropyTracker::new_empty();
                 index_picker = Some(Box::new(ip) as Box<dyn SuperTracker<T>>);
             },
             IndexPickerType::Dirty => {
-                panic!("NYI");
                 todo!("implement");
                 // let mapping = ctx.tile_model_mappings().get(tile_model_mapping).unwrap();
                 // if mapping.borrow().tile_coord_to_pattern_coord_index_and_offset.is_some() {
@@ -252,12 +245,10 @@ where T: Topology + Clone + 'static
                 },
                 TilePickerType::Ordered => {
                     // println!("SimplePatternPicker"); // TODO: Remove
-                    panic!("NYI");
                     todo!("implement");
                     // pattern_picker = Some(to_pattern_picker(SimplePatternPicker::new()));
                 },
                 TilePickerType::ArrayPriority => {
-                    panic!("NYI");
                     todo!("implement");
                     // let weight_set_collection = WeightSetCollection::new(
                     //     options.weight_set_by_index.clone(),
@@ -280,7 +271,6 @@ where T: Topology + Clone + 'static
         if options.memoize_indices {
             if let Some(picker) = index_picker {
                 // println!("MemoizeIndexPicker"); // TODO: Remove
-                panic!("NYI");
                 todo!("implement");
                 // let mip = MemoizeIndexPicker::new(picker.clone());
                 // index_picker = Some(to_index_picker(mip));

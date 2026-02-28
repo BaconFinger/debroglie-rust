@@ -145,8 +145,9 @@ impl<V: Clone + 'static, T: Topology + Clone> TilePropagatorOptions<V, T> {
 }
 
 mod tests {
-    use crate::tile_propagator_options::TilePropagatorOptions;
     use crate::topology::grid_topology::GridTopology;
+    use super::*;
+    
 
     #[test]
     fn includes_default_random_func() {
