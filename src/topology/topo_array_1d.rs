@@ -30,22 +30,22 @@ impl<T: Clone + 'static, TopologyT: Topology + Clone> TopoArray<T, TopologyT> fo
     }
 
     fn get_value_from_index(&self, index: usize) -> Option<&T> {
-        todo!()
+        unimplemented!();
     }
 
     fn get_value_from_coord(&self, x: usize, y: usize, z: usize) -> Option<&T> {
-        todo!()
+        unimplemented!();
     }
 
     fn get_id_from_index(&self, index: usize) -> Option<usize> {
-        todo!()
+        unimplemented!();
     }
 
     fn get_id_from_coord(&self, x: usize, y: usize, z: usize) -> Option<usize> {
-        todo!()
+        unimplemented!();
     }
 
     fn clone_box(&self) -> Option<Box<dyn TopoArray<T, TopologyT>>> {
-        todo!()
+        unimplemented!();
     }
 }

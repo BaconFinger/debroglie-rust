@@ -351,7 +351,6 @@ impl<T: Topology + Clone> Ac4PatternModelConstraint<T> {
             if c == 0 {
                 return Ok(Some((i2, p)));
                 // let propagator = self.get_wave_propagator(ctx);
-                // // TODO: Fix the dependency chain so we don't have to do this unsafe stuff.
                 // let propagator_ptr = propagator.as_ptr();
                 // unsafe {
                 //     // println!("Calling internal_ban");

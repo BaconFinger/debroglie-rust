@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
 use crate::constraints::tile_constraint::TileConstraint;
 use crate::tile::TileId;
 use crate::tile_propagator::DummyTopoArray;
@@ -91,13 +90,13 @@ pub struct TilePropagatorOptions<V, T: Topology + Clone>
     /// Overrides the weights set from the model, on a per-position basis.
     /// The integers correspond to entries in WeightSets
     /// Only used by <see cref="IndexPickerType.ArrayPriorityMinEntropy"/> and <see cref="TilePickerType.ArrayPriority"/>
-    pub weight_set_by_index: Arc<Mutex<Box<dyn TopoArray<V, T>>>>, // TODO: ArcMutex bad
+    pub weight_set_by_index: Box<dyn TopoArray<V, T>>,
 
     /// The weights sets reference by WeightSetByIndex
     pub weight_sets: HashMap<i32, HashMap<TileId, PriorityAndWeight>>,
 
     /// Only used by <see cref="IndexPickerType.Dirty"/>
-    pub clean_tiles: Arc<Mutex<Box<dyn TopoArray<TileId, T>>>>, // TODO: ArcMutex bad
+    pub clean_tiles: Box<dyn TopoArray<TileId, T>>,
 
     /// Only used by <see cref="IndexPickerType.Ordered"/>
     pub index_order: Vec<i32>,
@@ -136,9 +135,9 @@ impl<V: Clone + 'static, T: Topology + Clone + 'static> TilePropagatorOptions<V,
             index_picker_type: IndexPickerType::Default,
             tile_picker_type: TilePickerType::Default,
             model_constraint_algorithm: ModelConstraintAlgorithm::Default,
-            weight_set_by_index: Arc::new(Mutex::new(Box::new(DummyTopoArray::new()))),
+            weight_set_by_index: Box::new(DummyTopoArray::new()),
             weight_sets: HashMap::new(),
-            clean_tiles: Arc::new(Mutex::new(Box::new(DummyTopoArray::new()))),
+            clean_tiles: Box::new(DummyTopoArray::new()),
             index_order: Vec::new(),
             memoize_indices: false,
         }

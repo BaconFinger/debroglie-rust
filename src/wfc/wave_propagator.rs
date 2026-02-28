@@ -125,7 +125,11 @@ impl<T> WavePropagatorState<T> where T: Topology + Clone {
     }
 
     pub fn get_wave(&self) -> &Option<Wave> {
-        &self.wave // TODO: Refactor to return &self.wave.as_ref()?
+        &self.wave
+    }
+
+    pub fn get_wave_ref(&self) -> Option<&Wave> {
+        self.wave.as_ref()
     }
 }
 
@@ -147,7 +151,7 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
             use std::time::{SystemTime, UNIX_EPOCH};
 
             let mut hasher = DefaultHasher::new();
-            SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos().hash(&mut hasher);
+            SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos().hash(&mut hasher); // safe because we need this to panic if it happens
             let hash = hasher.finish();
             (hash as f64) / (u64::MAX as f64)
         }));
@@ -258,12 +262,13 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
         //     policy.init(self)?;
         // }
 
-        let mut pattern_model_constraint_owner = mem::replace(&mut self.pattern_model_constraint, Box::new(OneStepPatternModelConstraint));;
+        let mut pattern_model_constraint_owner = mem::replace(&mut self.pattern_model_constraint, Box::new(OneStepPatternModelConstraint));
         let pattern_model_constraint: &mut dyn PatternModelConstraint<T> = &mut *pattern_model_constraint_owner;
         let result = pattern_model_constraint.clear(tile_propagator_state.get_topology(), &self.state)?;
         if result.is_some() {
             let (idx_to_ban, pattern_to_ban) = result.unwrap(); // Safe because checked above
-            if self.internal_ban(idx_to_ban, pattern_to_ban, pattern_model_constraint).unwrap() { // TODO: Does this catch the panic?
+            let res = self.internal_ban(idx_to_ban, pattern_to_ban, pattern_model_constraint);
+            if res.is_some() && res.unwrap() {
                 self.set_contradiction();
             }
         }
@@ -304,7 +309,7 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
     }
 
     pub fn step(&mut self, tile_model_mapping: &TileModelMapping<T>, topology: &T) -> Result<Resolution, String> {
-        let mut pattern_model_constraint_owner = mem::replace(&mut self.pattern_model_constraint, Box::new(OneStepPatternModelConstraint));;
+        let mut pattern_model_constraint_owner = mem::replace(&mut self.pattern_model_constraint, Box::new(OneStepPatternModelConstraint));
         let pattern_model_constraint: &mut dyn PatternModelConstraint<T> = &mut *pattern_model_constraint_owner;
         // println!("wave_propagator.step");
         // Check if we need to step constraints

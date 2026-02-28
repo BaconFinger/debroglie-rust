@@ -1,7 +1,6 @@
 use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
 use crate::constraints::tile_constraint::TileConstraint;
 use crate::models::tile_model::TileModel;
 use crate::models::tile_model_mapping::TileModelMapping;
@@ -84,9 +83,9 @@ where T: Topology + Clone + 'static
             index_picker_type: IndexPickerType::Default,
             tile_picker_type: TilePickerType::Default,
             model_constraint_algorithm: ModelConstraintAlgorithm::Default,
-            weight_set_by_index: Arc::new(Mutex::new(Box::new(DummyTopoArray::new()))),
+            weight_set_by_index: Box::new(DummyTopoArray::new()),
             weight_sets: std::collections::HashMap::new(),
-            clean_tiles: Arc::new(Mutex::new(Box::new(DummyTopoArray::new()))),
+            clean_tiles: Box::new(DummyTopoArray::new()),
             index_order: Vec::new(),
             memoize_indices: false,
         };
@@ -176,7 +175,7 @@ where T: Topology + Clone + 'static
 
         match options.index_picker_type {
             IndexPickerType::Ordered => {
-                todo!("implement");
+                unimplemented!();
                 // if !options.index_order.is_empty() {
                 //     println!("OrderedIndexPicker"); // TODO: Remove
                 //     index_picker = Some(Arc::new(Mutex::new(Box::new(OrderedIndexPicker::new(options.index_order.clone())))));
@@ -188,7 +187,7 @@ where T: Topology + Clone + 'static
                 // }
             },
             IndexPickerType::ArrayPriorityMinEntropy => {
-                todo!("implement");
+                unimplemented!();
                 // if options.weight_set_by_index.lock().is_err() {
                 //     return Err("Expected WeightSetByIndex and WeightSets to be set".to_string());
                 // }
@@ -218,7 +217,7 @@ where T: Topology + Clone + 'static
                 index_picker = Some(Box::new(ip) as Box<dyn SuperTracker<T>>);
             },
             IndexPickerType::Dirty => {
-                todo!("implement");
+                unimplemented!();
                 // let mapping = ctx.tile_model_mappings().get(tile_model_mapping).unwrap();
                 // if mapping.borrow().tile_coord_to_pattern_coord_index_and_offset.is_some() {
                 //     return Err("Dirty index picker not supported with overlapping models".to_string());
@@ -245,11 +244,11 @@ where T: Topology + Clone + 'static
                 },
                 TilePickerType::Ordered => {
                     // println!("SimplePatternPicker"); // TODO: Remove
-                    todo!("implement");
+                    unimplemented!();
                     // pattern_picker = Some(to_pattern_picker(SimplePatternPicker::new()));
                 },
                 TilePickerType::ArrayPriority => {
-                    todo!("implement");
+                    unimplemented!();
                     // let weight_set_collection = WeightSetCollection::new(
                     //     options.weight_set_by_index.clone(),
                     //     options.weight_sets.clone(),
@@ -271,7 +270,7 @@ where T: Topology + Clone + 'static
         if options.memoize_indices {
             if let Some(picker) = index_picker {
                 // println!("MemoizeIndexPicker"); // TODO: Remove
-                todo!("implement");
+                unimplemented!();
                 // let mip = MemoizeIndexPicker::new(picker.clone());
                 // index_picker = Some(to_index_picker(mip));
             }
@@ -293,7 +292,6 @@ where T: Topology + Clone + 'static
     fn convert_constraints(constraints: &Vec<Box<dyn TileConstraint<T>>>) -> Result<Vec<WaveConstraint>, String> {
         // println!("Have {} constraints", constraints.len());
         return Ok(Vec::new());
-        todo!("convert constraints");
         // let mut wave_constraints = Vec::new();
         //
         // for constraint in constraints {
@@ -378,35 +376,35 @@ impl<T: Clone + 'static> DummyTopoArray<T> {
 
 impl<T: Clone + 'static, TopoT: Topology + Clone + 'static> TopoArray<T, TopoT> for DummyTopoArray<T> {
     fn topology(&self) -> Option<&TopoT> {
-        todo!()
+        unimplemented!();
     }
 
     fn get_coord(&self, x: usize, y: usize, z: usize) -> Result<&T, TopologyError> {
-        todo!()
+        unimplemented!();
     }
 
     fn get_index(&self, index: usize) -> Result<&T, TopologyError> {
-        todo!()
+        unimplemented!();
     }
 
     fn get_value_from_index(&self, index: usize) -> Option<&T> {
-        todo!()
+        unimplemented!();
     }
 
     fn get_value_from_coord(&self, x: usize, y: usize, z: usize) -> Option<&T> {
-        todo!()
+        unimplemented!();
     }
 
     fn get_id_from_index(&self, index: usize) -> Option<usize> {
-        todo!()
+        unimplemented!();
     }
 
     fn get_id_from_coord(&self, x: usize, y: usize, z: usize) -> Option<usize> {
-        todo!()
+        unimplemented!();
     }
 
     fn clone_box(&self) -> Option<Box<dyn TopoArray<T, TopoT>>> {
-        todo!()
+        unimplemented!();
     }
 }
 

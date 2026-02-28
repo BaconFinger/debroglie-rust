@@ -1,6 +1,5 @@
 use std::fmt;
 use std::fmt::{Debug, Display};
-use std::hash::Hasher;
 use image::{Pixel, Rgba};
 
 /// A unique identifier for a tile that lives in a Vec.
