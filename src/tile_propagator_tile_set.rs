@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt;
-use crate::context::TileId;
+use crate::tile::TileId;
 
 /// A set of tiles, specific to a particular TilePropagator.
 /// This struct internally caches some computations, making it faster

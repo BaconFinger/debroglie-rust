@@ -1,8 +1,10 @@
 use std::fmt;
 use std::fmt::{Debug, Display};
-use std::hash::Hasher;
-use image::{Pixel, Rgba, RgbaImage};
-use serde_derive::{Deserialize, Serialize};
+use image::{Pixel, Rgba};
+
+/// A unique identifier for a tile that lives in a Vec.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct TileId(pub usize);
 
 /// Thin wrapper around a value of any type. This is primarily what the library takes in and puts out.
 #[derive(Clone, Debug, Default)]

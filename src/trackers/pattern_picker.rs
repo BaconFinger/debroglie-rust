@@ -1,11 +1,10 @@
-use std::rc::Rc;
-use crate::context::{Context};
 use crate::topology::topology::Topology;
-use crate::wfc::wave_propagator::WavePropagator;
+use crate::trackers::tracker::SuperTracker;
+use crate::wfc::wave_propagator::WavePropagatorState;
 
 pub trait PatternPicker<T: Topology + Clone> {
-    fn init(&mut self, wave_propagator: &WavePropagator<T>) -> Result<(), String>;
-    fn get_random_possible_pattern_at(&mut self, ctx: &Context<T>, index: usize, random_double: Rc< dyn Fn() -> f64>) -> Option<usize>;
-    // fn set_self_ref(&mut self, self_ref: TrackerId);
-    // fn add_self(self, ctx: &Context<T>) -> TrackerId;
+    fn init(&mut self, wave_propagator_state: &WavePropagatorState<T>, topology: &T) -> Result<(), String>;
+    fn get_random_possible_pattern_at(&mut self, index: usize, wave_propagator_state: &WavePropagatorState<T>) -> Option<usize>;
+    fn as_super_tracker(&self) -> Option<&dyn SuperTracker<T>>;
+    fn as_super_tracker_mut(&mut self) -> Option<&mut dyn SuperTracker<T>>;
 }
