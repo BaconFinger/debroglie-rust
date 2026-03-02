@@ -2,7 +2,7 @@ use crate::models::tile_model_mapping::TileModelMapping;
 use crate::topology::topology::Topology;
 use crate::trackers::index_picker::IndexPicker;
 use crate::trackers::pattern_picker::PatternPicker;
-use crate::trackers::tracker::{SuperTracker, Tracker};
+use crate::trackers::tracker::{Tracker};
 use crate::wfc::wave::Wave;
 use crate::wfc::wave_propagator::WavePropagatorState;
 
@@ -28,7 +28,7 @@ impl EntropyTracker {
     }
 
     // For debugging
-    pub fn init_debug<T: Topology + Clone>(&mut self, wave: &Wave, frequencies: Vec<f64>, mask: Option<Vec<bool>>) -> Result<(), String> {
+    pub fn init_debug<T: Topology + Clone + 'static>(&mut self, wave: &Wave, frequencies: Vec<f64>, mask: Option<Vec<bool>>) -> Result<(), String> {
         self.frequencies = frequencies;
         self.pattern_count = self.frequencies.len();
         self.mask = mask;
@@ -43,7 +43,7 @@ impl EntropyTracker {
         }
 
         self.entropy_values = vec![EntropyValues::default(); self.indices];
-        self.reset()?;
+        <EntropyTracker as Tracker<T>>::reset(self)?;
 
         Ok(())
     }
@@ -114,16 +114,24 @@ impl<T: Topology + Clone + 'static> IndexPicker<T> for EntropyTracker {
         Some(selected_index)
     }
 
-    fn as_super_tracker(&self) -> Option<&dyn SuperTracker<T>> {
-        Some(self as &dyn SuperTracker<T>)
+    fn as_tracker(&self) -> Option<&dyn Tracker<T>> {
+        Some(self)
     }
 
-    fn as_super_tracker_mut(&mut self) -> Option<&mut dyn SuperTracker<T>> {
-        Some(self as &mut dyn SuperTracker<T>)
+    fn as_tracker_mut(&mut self) -> Option<&mut dyn Tracker<T>> {
+        Some(self)
+    }
+
+    fn as_pattern_picker(&self) -> Option<&dyn PatternPicker<T>> {
+        None
+    }
+
+    fn as_pattern_picker_mut(&mut self) -> Option<&mut dyn PatternPicker<T>> {
+        None
     }
 }
 
-impl Tracker for EntropyTracker {
+impl<T: Topology + Clone + 'static> Tracker<T> for EntropyTracker {
     fn reset(&mut self) -> Result<(), String> {
         // Assumes Reset is called on a truly new Wave.
         let mut initial = EntropyValues::default();
@@ -162,37 +170,21 @@ impl Tracker for EntropyTracker {
 
         Ok(())
     }
-}
 
-impl<T: Topology + Clone + 'static> PatternPicker<T> for EntropyTracker {
-    fn init(&mut self, wave_propagator_state: &WavePropagatorState<T>, topology: &T) -> Result<(), String> {
-        unimplemented!("EntropyTracker is not a PatternPicker")
+    fn as_pattern_picker(&self) -> Option<&dyn PatternPicker<T>> {
+        None
     }
 
-    fn get_random_possible_pattern_at(&mut self, index: usize, wave_propagator_state: &WavePropagatorState<T>) -> Option<usize> {
-        unimplemented!("EntropyTracker is not a PatternPicker")
+    fn as_pattern_picker_mut(&mut self) -> Option<&mut dyn PatternPicker<T>> {
+        None
     }
 
-    fn as_super_tracker(&self) -> Option<&dyn SuperTracker<T>> {
-        Some(self as &dyn SuperTracker<T>)
+    fn as_index_picker(&self) -> Option<&dyn IndexPicker<T>> {
+        Some(self)
     }
 
-    fn as_super_tracker_mut(&mut self) -> Option<&mut dyn SuperTracker<T>> {
-        Some(self as &mut dyn SuperTracker<T>)
-    }
-}
-
-impl<T: Topology + Clone + 'static> SuperTracker<T> for EntropyTracker {
-    fn is_index_picker(&self) -> bool {
-        true
-    }
-
-    fn is_pattern_picker(&self) -> bool {
-        false
-    }
-
-    fn is_tracker(&self) -> bool {
-        true
+    fn as_index_picker_mut(&mut self) -> Option<&mut dyn IndexPicker<T>> {
+        Some(self)
     }
 }
 

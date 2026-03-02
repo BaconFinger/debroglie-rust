@@ -9,7 +9,7 @@ use crate::topology::topology::Topology;
 use crate::trackers::entropy_tracker::EntropyTracker;
 use crate::trackers::index_picker::IndexPicker;
 use crate::trackers::pattern_picker::PatternPicker;
-use crate::trackers::tracker::{ChoiceObserver, SuperTracker};
+use crate::trackers::tracker::{ChoiceObserver, Tracker};
 use crate::trackers::weighted_random_pattern_picker::WeightedRandomPatternPicker;
 use crate::wfc::act_4_pattern_model_constraint::Ac4PatternModelConstraint;
 use crate::wfc::backtrack_policy::BacktrackPolicy;
@@ -49,14 +49,11 @@ pub enum ModelConstraintAlgorithm {
 
 pub struct WavePropagator<T: Topology + Clone> {
     state: WavePropagatorState<T>,
-    // Main data tracking what we've decided so far
-    // wave: Option<Wave>,
 
     pattern_model_constraint: Box<dyn PatternModelConstraint<T>>,
 
     // From model
     pattern_count: usize,
-    // frequencies: Vec<f64>,
 
     // Used for backtracking
     backtrack_items: Option<VecDeque<IndexPatternItem>>,
@@ -71,20 +68,17 @@ pub struct WavePropagator<T: Topology + Clone> {
     backtrack: bool,
     max_backtrack_depth: i32,
     constraints: Vec<WaveConstraint>,
-    // random_double: Rc<dyn Fn() -> f64>,
 
     // Deferred constraints
     deferred_constraints_step: bool,
 
     // The overall status
-    // status: Resolution,
     contradiction_reason: Option<String>,
     contradiction_source: Option<String>,
 
-    // pub topology: TopologyId, // was pub topology: Arc<Mutex<Box<dyn Topology>>>,
     directions_count: usize,
 
-    trackers: Vec<Box<dyn SuperTracker<T>>>,
+    trackers: Vec<Box<dyn Tracker<T>>>,
     choice_observers: Vec<Box<dyn ChoiceObserver>>,
     index_picker: Box<dyn IndexPicker<T>>,
     pattern_picker: Box<dyn PatternPicker<T>>,
@@ -104,7 +98,7 @@ pub struct WavePropagatorOptions<T: Topology + Clone> {
 }
 
 pub struct WavePropagatorState<T: Topology + Clone> {
-    wave: Option<Wave>,
+    wave: Option<Wave>, // The main data we're tracking
     frequencies: Vec<f64>,
     random_double: Rc<dyn Fn() -> f64>,
     status: Resolution,
@@ -485,12 +479,12 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
             let res = tracker.do_ban(index, pattern);
             Self::process_tracker_result(res, "do_ban");
         }
-        if self.index_picker.as_super_tracker().is_some() {
-            let res = self.index_picker.as_super_tracker_mut().unwrap().do_ban(index, pattern); // Safe because checked above
+        if let Some(index_picker) = self.index_picker.as_tracker_mut() {
+            let res = index_picker.do_ban(index, pattern);
             Self::process_tracker_result(res, "do_ban");
         }
-        if self.pattern_picker.as_super_tracker().is_some() {
-            let res = self.pattern_picker.as_super_tracker_mut().unwrap().do_ban(index, pattern); // Safe because checked above
+        if let Some(pattern_picker) = self.pattern_picker.as_tracker_mut() {
+            let res = pattern_picker.do_ban(index, pattern);
             Self::process_tracker_result(res, "do_ban");
         }
 
@@ -625,9 +619,7 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
 
             // Revalidate status
             if self.state.status == Resolution::Undecided {
-                // let mut pattern_model_constraint = mem::replace(&mut self.pattern_model_constraint, Box::new(OneStepPatternModelConstraint));
                 pattern_model_constraint.propagate(topology, self)?;
-                // self.pattern_model_constraint = pattern_model_constraint;
             }
             if self.state.status == Resolution::Undecided {
                 self.step_constraints(topology, pattern_model_constraint);
@@ -674,12 +666,12 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
                 let res = tracker.do_ban(index, pattern);
                 Self::process_tracker_result(res, "do_ban");
             }
-            if self.index_picker.as_super_tracker().is_some() {
-                let res = self.index_picker.as_super_tracker_mut().unwrap().do_ban(index, pattern); // Safe because checked above
+            if let Some(index_picker) = self.index_picker.as_tracker_mut() {
+                let res = index_picker.do_ban(index, pattern);
                 Self::process_tracker_result(res, "do_ban");
             }
-            if self.pattern_picker.as_super_tracker().is_some() {
-                let res = self.pattern_picker.as_super_tracker_mut().unwrap().do_ban(index, pattern); // Safe because checked above
+            if let Some(pattern_picker) = self.pattern_picker.as_tracker_mut() {
+                let res = pattern_picker.do_ban(index, pattern);
                 Self::process_tracker_result(res, "do_ban");
             }
         }
@@ -710,7 +702,7 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
         self.choice_observers.push(observer);
     }
 
-    pub fn add_tracker(&mut self, tracker: Box<dyn SuperTracker<T>>) {
+    pub fn add_tracker(&mut self, tracker: Box<dyn Tracker<T>>) {
         // if tracker.is_index_picker() {
         //     self.index_picker_trackers.push(tracker);
         // } else {

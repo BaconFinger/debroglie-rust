@@ -15,7 +15,7 @@ pub trait ChoiceObserver {
 /// Trackers are objects that maintain state that is a summary of the current state of the propagator.
 /// By updating that state as the propagator changes, they can give a significant performance benefit
 /// over calculating the value from scratch each time it is needed.
-pub trait Tracker {
+pub trait Tracker<T: Topology + Clone> {
     /// Reset the tracker to its initial state
     fn reset(&mut self) -> Result<(), String>;
 
@@ -24,17 +24,10 @@ pub trait Tracker {
 
     /// Called when a pattern ban is undone at a specific index
     fn undo_ban(&mut self, index: usize, pattern: usize) -> Result<(), String>;
-}
 
-/// A Tracker that also implements IndexPicker and PatternPicker.
-/// TODO: Figure this out for real.
-/// The problem is that in the init of TilePropagator, some
-/// classes like HeapEntropyTracker are treated as IndexPickers, but in the run() they are
-/// actually trackers.
-/// So just implement this trait and mark unused stuff with not_implemented!() so once everything
-/// is ported I can figure it out.
-pub trait SuperTracker<T: Topology + Clone>: Tracker + IndexPicker<T> + PatternPicker<T> {
-    fn is_index_picker(&self) -> bool;
-    fn is_pattern_picker(&self) -> bool;
-    fn is_tracker(&self) -> bool;
+    fn as_pattern_picker(&self) -> Option<&dyn PatternPicker<T>>;
+    fn as_pattern_picker_mut(&mut self) -> Option<&mut dyn PatternPicker<T>>;
+
+    fn as_index_picker(&self) -> Option<&dyn IndexPicker<T>>;
+    fn as_index_picker_mut(&mut self) -> Option<&mut dyn IndexPicker<T>>;
 }

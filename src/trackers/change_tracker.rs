@@ -2,6 +2,8 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use crate::models::tile_model_mapping::TileModelMapping;
 use crate::topology::topology::{Topology, TopologyError};
+use crate::trackers::index_picker::IndexPicker;
+use crate::trackers::pattern_picker::PatternPicker;
 use crate::trackers::tracker::Tracker;
 
 pub struct ChangeTracker<T: Topology + Clone> {
@@ -77,7 +79,7 @@ impl<T: Topology + Clone> ChangeTracker<T> {
     }
 }
 
-impl<T: Topology + Clone> Tracker for ChangeTracker<T> {
+impl<T: Topology + Clone> Tracker<T> for ChangeTracker<T> {
     fn reset(&mut self) -> Result<(), String> {
         self.changed_indices = Vec::new();
         self.changed_indices2 = Vec::new();
@@ -103,5 +105,21 @@ impl<T: Topology + Clone> Tracker for ChangeTracker<T> {
         }
 
         Ok(())
+    }
+
+    fn as_pattern_picker(&self) -> Option<&dyn PatternPicker<T>> {
+        None
+    }
+
+    fn as_pattern_picker_mut(&mut self) -> Option<&mut dyn PatternPicker<T>> {
+        None
+    }
+
+    fn as_index_picker(&self) -> Option<&dyn IndexPicker<T>> {
+        None
+    }
+
+    fn as_index_picker_mut(&mut self) -> Option<&mut dyn IndexPicker<T>> {
+        None
     }
 }

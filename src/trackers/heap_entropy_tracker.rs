@@ -8,7 +8,7 @@ use crate::topology::topology::Topology;
 use crate::trackers::change_tracker::ChangeTracker;
 use crate::trackers::index_picker::IndexPicker;
 use crate::trackers::pattern_picker::PatternPicker;
-use crate::trackers::tracker::{SuperTracker, Tracker};
+use crate::trackers::tracker::{Tracker};
 use crate::wfc::wave_propagator::WavePropagatorState;
 
 pub struct HeapEntropyTracker<T: Topology + Clone> {
@@ -24,7 +24,7 @@ pub struct HeapEntropyTracker<T: Topology + Clone> {
 }
 
 impl<T: Topology + Clone + 'static> HeapEntropyTracker<T> {
-    pub fn new() -> Box<dyn Tracker> {
+    pub fn new() -> Box<dyn Tracker<T>> {
         let me = Self::new_empty();
         Box::new(me)
     }
@@ -75,7 +75,7 @@ impl<T: Topology + Clone + 'static> HeapEntropyTracker<T> {
     const THRESHOLD: f64 = 1e-17;
 }
 
-impl<T: Topology + Clone> Tracker for HeapEntropyTracker<T> {
+impl<T: Topology + Clone + 'static> Tracker<T> for HeapEntropyTracker<T> {
     fn reset(&mut self) -> Result<(), String> {
         // Assumes Reset is called on a truly new Wave.
         let mut initial = EntropyValues::new();
@@ -146,6 +146,22 @@ impl<T: Topology + Clone> Tracker for HeapEntropyTracker<T> {
         }
 
         Ok(())
+    }
+
+    fn as_pattern_picker(&self) -> Option<&dyn PatternPicker<T>> {
+        None
+    }
+
+    fn as_pattern_picker_mut(&mut self) -> Option<&mut dyn PatternPicker<T>> {
+        None
+    }
+
+    fn as_index_picker(&self) -> Option<&dyn IndexPicker<T>> {
+        Some(self)
+    }
+
+    fn as_index_picker_mut(&mut self) -> Option<&mut dyn IndexPicker<T>> {
+        Some(self)
     }
 }
 
@@ -230,13 +246,29 @@ impl<T: Topology + Clone + 'static> IndexPicker<T> for HeapEntropyTracker<T> {
         Some(item.index.clone() as i32)
     }
 
-    fn as_super_tracker(&self) -> Option<&dyn SuperTracker<T>> {
-        Some(self as &dyn SuperTracker<T>)
+    fn as_tracker(&self) -> Option<&dyn Tracker<T>> {
+        Some(self)
     }
 
-    fn as_super_tracker_mut(&mut self) -> Option<&mut dyn SuperTracker<T>> {
-        Some(self as &mut dyn SuperTracker<T>)
+    fn as_tracker_mut(&mut self) -> Option<&mut dyn Tracker<T>> {
+        Some(self)
     }
+
+    fn as_pattern_picker(&self) -> Option<&dyn PatternPicker<T>> {
+        None
+    }
+
+    fn as_pattern_picker_mut(&mut self) -> Option<&mut dyn PatternPicker<T>> {
+        None
+    }
+
+    // fn as_super_tracker(&self) -> Option<&dyn SuperTracker<T>> {
+    //     Some(self as &dyn SuperTracker<T>)
+    // }
+    //
+    // fn as_super_tracker_mut(&mut self) -> Option<&mut dyn SuperTracker<T>> {
+    //     Some(self as &mut dyn SuperTracker<T>)
+    // }
 }
 
 impl<T: Topology + Clone + 'static> Default for HeapEntropyTracker<T> {
@@ -251,37 +283,37 @@ impl<T: Topology + Clone + 'static> HeapEntropyTracker<T> {
     }
 }
 
-impl<T: Topology + Clone + 'static> PatternPicker<T> for HeapEntropyTracker<T> {
-    fn init(&mut self, wave_propagator_state: &WavePropagatorState<T>, topology: &T) -> Result<(), String> {
-        unimplemented!("HeapEntropyTracker is not a PatternPicker")
-    }
+// impl<T: Topology + Clone + 'static> PatternPicker<T> for HeapEntropyTracker<T> {
+//     fn init(&mut self, wave_propagator_state: &WavePropagatorState<T>, topology: &T) -> Result<(), String> {
+//         unimplemented!("HeapEntropyTracker is not a PatternPicker")
+//     }
+//
+//     fn get_random_possible_pattern_at(&mut self, index: usize, wave_propagator_state: &WavePropagatorState<T>) -> Option<usize> {
+//         unimplemented!("HeapEntropyTracker is not a PatternPicker")
+//     }
+//
+//     fn as_super_tracker(&self) -> Option<&dyn SuperTracker<T>> {
+//         Some(self as &dyn SuperTracker<T>)
+//     }
+//
+//     fn as_super_tracker_mut(&mut self) -> Option<&mut dyn SuperTracker<T>> {
+//         Some(self as &mut dyn SuperTracker<T>)
+//     }
+// }
 
-    fn get_random_possible_pattern_at(&mut self, index: usize, wave_propagator_state: &WavePropagatorState<T>) -> Option<usize> {
-        unimplemented!("HeapEntropyTracker is not a PatternPicker")
-    }
-
-    fn as_super_tracker(&self) -> Option<&dyn SuperTracker<T>> {
-        Some(self as &dyn SuperTracker<T>)
-    }
-
-    fn as_super_tracker_mut(&mut self) -> Option<&mut dyn SuperTracker<T>> {
-        Some(self as &mut dyn SuperTracker<T>)
-    }
-}
-
-impl<T: Topology + Clone + 'static> SuperTracker<T> for HeapEntropyTracker<T> {
-    fn is_index_picker(&self) -> bool {
-        true
-    }
-
-    fn is_pattern_picker(&self) -> bool {
-        false
-    }
-
-    fn is_tracker(&self) -> bool {
-        true
-    }
-}
+// impl<T: Topology + Clone + 'static> SuperTracker<T> for HeapEntropyTracker<T> {
+//     fn is_index_picker(&self) -> bool {
+//         true
+//     }
+//
+//     fn is_pattern_picker(&self) -> bool {
+//         false
+//     }
+//
+//     fn is_tracker(&self) -> bool {
+//         true
+//     }
+// }
 
 #[derive(Debug, Clone)]
 pub(crate) struct EntropyValues {
