@@ -13,7 +13,8 @@ use crate::topology::topology::{Topology, TopologyError};
 use crate::trackers::entropy_tracker::EntropyTracker;
 use crate::trackers::heap_entropy_tracker::HeapEntropyTracker;
 use crate::trackers::index_picker::IndexPicker;
-use crate::trackers::tracker::SuperTracker;
+use crate::trackers::pattern_picker::PatternPicker;
+use crate::trackers::tracker::Tracker;
 use crate::trackers::weighted_random_pattern_picker::WeightedRandomPatternPicker;
 use crate::wfc::backtrack_policy::{BacktrackPolicy, ConstantBacktrackPolicy, PatienceBackjumpPolicy};
 use crate::wfc::wave_propagator::{ModelConstraintAlgorithm, WaveConstraint, WavePropagator, WavePropagatorOptions, WavePropagatorState};
@@ -28,9 +29,6 @@ use crate::wfc::wave_propagator::{ModelConstraintAlgorithm, WaveConstraint, Wave
 pub struct TilePropagator<T>
 where T: Topology + Clone + 'static
 {
-    // topology: T,
-    // tile_model: Box<dyn TileModel<T>>,
-    // tile_model_mapping: TileModelMapping<T>,
     wave_propagator: WavePropagator<T>,
     state: TilePropagatorState<T>,
 }
@@ -38,7 +36,6 @@ where T: Topology + Clone + 'static
 pub struct TilePropagatorState<T>
 where T: Topology + Clone + 'static {
     topology: T,
-    // wave_propagator: WavePropagator<T>,
     tile_model: Box<dyn TileModel<T>>,
     tile_model_mapping: TileModelMapping<T>,
 }
@@ -152,7 +149,7 @@ where T: Topology + Clone + 'static
     fn make_pickers(
         options: &TilePropagatorOptions<i32, T>,
         tile_model_mapping: &TileModelMapping<T>,
-    ) -> Result<(Box<dyn SuperTracker<T>>, Box<dyn SuperTracker<T>>), String> {
+    ) -> Result<(Box<dyn IndexPicker<T>>, Box<dyn PatternPicker<T>>), String> {
         let connected_constraint = options.constraints
             .iter()
             .find(|c| {
@@ -171,8 +168,8 @@ where T: Topology + Clone + 'static
         }
 
         #[allow(unused_assignments)]
-        let mut index_picker: Option<Box<dyn SuperTracker<T>>> = None;
-        let mut pattern_picker: Option<Box<dyn SuperTracker<T>>> = None;
+        let mut index_picker: Option<Box<dyn IndexPicker<T>>> = None;
+        let mut pattern_picker: Option<Box<dyn PatternPicker<T>>> = None;
 
         match options.index_picker_type {
             IndexPickerType::Ordered => {
@@ -210,12 +207,12 @@ where T: Topology + Clone + 'static
             IndexPickerType::MinEntropy => {
                 // println!("EntropyTracker"); // TODO: Remove
                 let ip = EntropyTracker::new();
-                index_picker = Some(Box::new(ip) as Box<dyn SuperTracker<T>>);
+                index_picker = Some(Box::new(ip));
             },
             IndexPickerType::Default | IndexPickerType::HeapMinEntropy => {
                 // println!("HeapEntropyTracker"); // TODO: Remove
                 let ip = HeapEntropyTracker::new_empty();
-                index_picker = Some(Box::new(ip) as Box<dyn SuperTracker<T>>);
+                index_picker = Some(Box::new(ip));
             },
             IndexPickerType::Dirty => {
                 unimplemented!();
@@ -241,7 +238,7 @@ where T: Topology + Clone + 'static
                 TilePickerType::Default | TilePickerType::Weighted => {
                     // println!("WeightedRandomPatternPicker"); // TODO: Remove
                     let pp = WeightedRandomPatternPicker::new();
-                    pattern_picker = Some(Box::new(pp) as Box<dyn SuperTracker<T>>);
+                    pattern_picker = Some(Box::new(pp));
                 },
                 TilePickerType::Ordered => {
                     // println!("SimplePatternPicker"); // TODO: Remove
@@ -330,7 +327,6 @@ where T: Topology + Clone + 'static
 
         // Create a simple 1D topology array wrapper
         Ok(Box::new(TopoArray1D::new(values, self.state.topology.clone())))
-        // Ok(Box::new(SimpleTopoArray::new(values, self.topology.clone())))
     }
 
     /// Gets the value of a Tile that has been decided at a given index with defaults.
@@ -419,11 +415,19 @@ impl<T: Topology + Clone, R: IndexPicker<T>> IndexPicker<T> for AsIndexPicker<T,
         self.0.borrow_mut().get_random_index(wave_propagator_state, tile_model_mapping)
     }
 
-    fn as_super_tracker(&self) -> Option<&dyn SuperTracker<T>> {
+    fn as_tracker(&self) -> Option<&dyn Tracker<T>> {
         None
     }
 
-    fn as_super_tracker_mut(&mut self) -> Option<&mut dyn SuperTracker<T>> {
+    fn as_tracker_mut(&mut self) -> Option<&mut dyn Tracker<T>> {
+        None
+    }
+
+    fn as_pattern_picker(&self) -> Option<&dyn PatternPicker<T>> {
+        None
+    }
+
+    fn as_pattern_picker_mut(&mut self) -> Option<&mut dyn PatternPicker<T>> {
         None
     }
 }
