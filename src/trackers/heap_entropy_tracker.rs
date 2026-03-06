@@ -1,16 +1,16 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-use ordered_float::OrderedFloat;
 use crate::heap::{Heap, HeapNode};
-use crate::shared_mut_heap::{SharedMutHeap};
 use crate::models::tile_model_mapping::TileModelMapping;
+use crate::shared_mut_heap::SharedMutHeap;
 use crate::topology::topology::{Topology, TopologyError};
 use crate::trackers::change_tracker::{ChangeTracker, ChangeTrackerError};
 use crate::trackers::index_picker::IndexPicker;
 use crate::trackers::pattern_picker::PatternPicker;
-use crate::trackers::tracker::{Tracker};
+use crate::trackers::tracker::Tracker;
 use crate::trait_error::TraitError;
 use crate::wfc::wave_propagator::WavePropagatorState;
+use ordered_float::OrderedFloat;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum HeapEntropyTrackerError {
@@ -66,7 +66,11 @@ impl<T: Topology + Clone + 'static> HeapEntropyTracker<T> {
         self.pattern_count = self.frequencies.len();
         self.mask = mask;
         self.random_double = Some(wave_propagator_state.get_random_double());
-        self.index_count = wave_propagator_state.get_wave().as_ref().ok_or(HeapEntropyTrackerError::NoWave)?.indices();
+        self.index_count = wave_propagator_state
+            .get_wave()
+            .as_ref()
+            .ok_or(HeapEntropyTrackerError::NoWave)?
+            .indices();
 
         // Initialize plogp
         self.plogp = vec![0.0; self.pattern_count];
@@ -108,7 +112,10 @@ impl<T: Topology + Clone + 'static> Tracker<T> for HeapEntropyTracker<T> {
             heap.clear();
         }
 
-        let random_fn = self.random_double.as_ref().ok_or(HeapEntropyTrackerError::RandomDoubleMissing)?;
+        let random_fn = self
+            .random_double
+            .as_ref()
+            .ok_or(HeapEntropyTrackerError::RandomDoubleMissing)?;
 
         for index in 0..self.index_count {
             if self.mask.as_ref().map_or(true, |m| m[index]) {
@@ -134,10 +141,9 @@ impl<T: Topology + Clone + 'static> Tracker<T> for HeapEntropyTracker<T> {
     }
 
     fn do_ban(&mut self, index: usize, pattern: usize) -> Result<(), TraitError> {
-        self.entropy_values[index].borrow_mut().decrement(
-            self.frequencies[pattern],
-            self.plogp[pattern],
-        );
+        self.entropy_values[index]
+            .borrow_mut()
+            .decrement(self.frequencies[pattern], self.plogp[pattern]);
         // self.sync_heap_evs();
 
         if let Some(ref mut tracker) = self.tracker {
@@ -148,10 +154,9 @@ impl<T: Topology + Clone + 'static> Tracker<T> for HeapEntropyTracker<T> {
     }
 
     fn undo_ban(&mut self, index: usize, pattern: usize) -> Result<(), TraitError> {
-        self.entropy_values[index].borrow_mut().increment(
-            self.frequencies[pattern],
-            self.plogp[pattern],
-        );
+        self.entropy_values[index]
+            .borrow_mut()
+            .increment(self.frequencies[pattern], self.plogp[pattern]);
         // self.sync_heap_evs();
 
         if let Some(ref mut tracker) = self.tracker {
@@ -179,17 +184,24 @@ impl<T: Topology + Clone + 'static> Tracker<T> for HeapEntropyTracker<T> {
 }
 
 impl<T: Topology + Clone + 'static> IndexPicker<T> for HeapEntropyTracker<T> {
-    fn init(&mut self, wave_propagator_state: &WavePropagatorState<T>, topology: &T) -> Result<(), TraitError> {
-        self.init_debug(
-            wave_propagator_state,
-            topology.mask(),
-        )?;
+    fn init(
+        &mut self,
+        wave_propagator_state: &WavePropagatorState<T>,
+        topology: &T,
+    ) -> Result<(), TraitError> {
+        self.init_debug(wave_propagator_state, topology.mask())?;
         Ok(())
     }
 
-    fn get_random_index(&mut self, wave_propagator_state: &WavePropagatorState<T>, tile_model_mapping: &TileModelMapping<T>) -> Option<i32> {
+    fn get_random_index(
+        &mut self,
+        wave_propagator_state: &WavePropagatorState<T>,
+        tile_model_mapping: &TileModelMapping<T>,
+    ) -> Option<i32> {
         let changed_indices = if let Some(mut tracker) = self.tracker.take() {
-            let indices = tracker.get_changed_indices(tile_model_mapping).unwrap_or_default();
+            let indices = tracker
+                .get_changed_indices(tile_model_mapping)
+                .unwrap_or_default();
             self.tracker = Some(tracker);
             indices
         } else {
@@ -199,7 +211,9 @@ impl<T: Topology + Clone + 'static> IndexPicker<T> for HeapEntropyTracker<T> {
 
         let wave = wave_propagator_state.get_wave().as_ref()?;
 
-        if changed_indices.len() > (wave.indices() as f64 * 0.5) as usize && changed_indices.len() > 1 {
+        if changed_indices.len() > (wave.indices() as f64 * 0.5) as usize
+            && changed_indices.len() > 1
+        {
             // A lot of indices have changed
             // It's faster to rebuild the entire heap than sync it one at a time
             for &index in &changed_indices {
@@ -246,7 +260,6 @@ impl<T: Topology + Clone + 'static> IndexPicker<T> for HeapEntropyTracker<T> {
                     heap.changed_key(to_change); // TODO: Fix unwrap
                 }
             }
-
         }
 
         let heap = self.heap.as_ref()?;
@@ -330,9 +343,9 @@ impl<T: Topology + Clone + 'static> HeapEntropyTracker<T> {
 
 #[derive(Debug, Clone)]
 pub(crate) struct EntropyValues {
-    pub(crate) plogp_sum: f64,     // The sum of p'(pattern) * log(p'(pattern)).
-    pub(crate) sum: f64,           // The sum of p'(pattern).
-    pub(crate) entropy: f64,       // The entropy of the cell.
+    pub(crate) plogp_sum: f64, // The sum of p'(pattern) * log(p'(pattern)).
+    pub(crate) sum: f64,       // The sum of p'(pattern).
+    pub(crate) entropy: f64,   // The entropy of the cell.
     pub(crate) index: usize,
     pub(crate) heap_index: Option<usize>,
     pub(crate) tiebreaker: f64,
@@ -379,7 +392,7 @@ impl EntropyValues {
         self.sum -= p;
     }
 
-    pub(crate)fn increment(&mut self, p: f64, plogp: f64) {
+    pub(crate) fn increment(&mut self, p: f64, plogp: f64) {
         self.plogp_sum += plogp;
         self.sum += p;
     }

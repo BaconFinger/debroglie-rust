@@ -161,19 +161,34 @@ mod tests {
     #[test]
     fn test_result_conversion() {
         assert_eq!(Resolution::Decided.to_result(), Ok(()));
-        assert_eq!(Resolution::Undecided.to_result(), Err(Resolution::Undecided));
-        assert_eq!(Resolution::Contradiction.to_result(), Err(Resolution::Contradiction));
+        assert_eq!(
+            Resolution::Undecided.to_result(),
+            Err(Resolution::Undecided)
+        );
+        assert_eq!(
+            Resolution::Contradiction.to_result(),
+            Err(Resolution::Contradiction)
+        );
 
         // from_result can only produce Decided or Contradiction (not Undecided)
         let ok_result: Result<i32, &str> = Ok(42);
         let err_result: Result<i32, &str> = Err("error");
 
         assert_eq!(Resolution::from_result(ok_result), Resolution::Decided);
-        assert_eq!(Resolution::from_result(err_result), Resolution::Contradiction);
+        assert_eq!(
+            Resolution::from_result(err_result),
+            Resolution::Contradiction
+        );
 
         // Additional concrete examples
-        assert_eq!(Resolution::from_result(Ok::<i32, &str>(100)), Resolution::Decided);
-        assert_eq!(Resolution::from_result(Err::<i32, &str>("failed")), Resolution::Contradiction);
+        assert_eq!(
+            Resolution::from_result(Ok::<i32, &str>(100)),
+            Resolution::Decided
+        );
+        assert_eq!(
+            Resolution::from_result(Err::<i32, &str>("failed")),
+            Resolution::Contradiction
+        );
     }
 
     #[test]

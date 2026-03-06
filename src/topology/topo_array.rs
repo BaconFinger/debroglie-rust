@@ -1,6 +1,6 @@
-use std::marker::PhantomData;
 use crate::topology::ragged_topology_array_2d::RaggedTopoArray2D;
 use crate::topology::topology::{Topology, TopologyError};
+use std::marker::PhantomData;
 
 /// A read-only array coupled with a specific Topology
 pub trait TopoArray<T: Clone + 'static, Topo: Topology + Clone> {
@@ -10,8 +10,8 @@ pub trait TopoArray<T: Clone + 'static, Topo: Topology + Clone> {
     fn get_coord(&self, x: usize, y: usize, z: usize) -> Result<&T, TopologyError> {
         let index = self
             .topology()
-            .ok_or(TopologyError::Other("unable to get topology".to_string()))
-            ?.get_index(x, y, z)?;
+            .ok_or(TopologyError::Other("unable to get topology".to_string()))?
+            .get_index(x, y, z)?;
         self.get_index(index)
     }
 
@@ -60,13 +60,26 @@ pub trait TopoArray3D<T, Topo: Topology + Clone> {
 /// A mutable array coupled with a specific Topology
 pub trait TopoArrayMut<T: Clone + 'static, Topo: Topology + Clone>: TopoArray<T, Topo> {
     /// Sets the value at a particular location.
-    fn set_coord(&mut self, topology: &Topo, x: usize, y: usize, z: usize, value: T) -> Result<(), TopologyError> {
+    fn set_coord(
+        &mut self,
+        topology: &Topo,
+        x: usize,
+        y: usize,
+        z: usize,
+        value: T,
+    ) -> Result<(), TopologyError> {
         let index = topology.get_index(x, y, z)?;
         self.set_index(index, value)
     }
 
     /// Sets the value at a particular location (2D convenience method)
-    fn set_coord_2d(&mut self, topology: &Topo, x: usize, y: usize, value: T) -> Result<(), TopologyError> {
+    fn set_coord_2d(
+        &mut self,
+        topology: &Topo,
+        x: usize,
+        y: usize,
+        value: T,
+    ) -> Result<(), TopologyError> {
         self.set_coord(topology, x, y, 0, value)
     }
 
@@ -74,13 +87,24 @@ pub trait TopoArrayMut<T: Clone + 'static, Topo: Topology + Clone>: TopoArray<T,
     fn set_index(&mut self, index: usize, value: T) -> Result<(), TopologyError>;
 
     /// Gets a mutable reference to the value at a particular location.
-    fn get_mut_coord(&mut self, topology: &Topo, x: usize, y: usize, z: usize) -> Result<&mut T, TopologyError> {
+    fn get_mut_coord(
+        &mut self,
+        topology: &Topo,
+        x: usize,
+        y: usize,
+        z: usize,
+    ) -> Result<&mut T, TopologyError> {
         let index = topology.get_index(x, y, z)?;
         self.get_mut_index(index)
     }
 
     /// Gets a mutable reference to the value at a particular location (2D convenience method)
-    fn get_mut_coord_2d(&mut self, topology: &Topo, x: usize, y: usize) -> Result<&mut T, TopologyError> {
+    fn get_mut_coord_2d(
+        &mut self,
+        topology: &Topo,
+        x: usize,
+        y: usize,
+    ) -> Result<&mut T, TopologyError> {
         self.get_mut_coord(topology, x, y, 0)
     }
 
@@ -184,15 +208,19 @@ impl TopologyArray {
 }
 
 pub struct DefaultTopoArray<T, TTopo: Topology + Clone> {
-    _phantom: PhantomData<(T, TTopo)>
+    _phantom: PhantomData<(T, TTopo)>,
 }
 
 impl<T, TTopo: Topology + Clone> DefaultTopoArray<T, TTopo> {
     pub fn new() -> DefaultTopoArray<T, TTopo> {
-        DefaultTopoArray { _phantom: PhantomData }
+        DefaultTopoArray {
+            _phantom: PhantomData,
+        }
     }
 }
-impl<T: Clone + 'static, TTopo: Topology + Clone + 'static> TopoArray<T, TTopo> for DefaultTopoArray<T, TTopo> {
+impl<T: Clone + 'static, TTopo: Topology + Clone + 'static> TopoArray<T, TTopo>
+    for DefaultTopoArray<T, TTopo>
+{
     fn topology(&self) -> Option<&TTopo> {
         unimplemented!("DefaultTopoArray is a default value and should not be used")
     }

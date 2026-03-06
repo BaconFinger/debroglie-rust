@@ -1,12 +1,11 @@
-use std::cell::RefCell;
-use std::marker::PhantomData;
-use std::rc::Rc;
 use crate::constraints::tile_constraint::TileConstraint;
 use crate::models::tile_model::TileModel;
 use crate::models::tile_model_mapping::TileModelMapping;
 use crate::resolution::Resolution;
 use crate::tile::TileVisual;
-use crate::tile_propagator_options::{BacktrackType, IndexPickerType, TilePickerType, TilePropagatorOptions};
+use crate::tile_propagator_options::{
+    BacktrackType, IndexPickerType, TilePickerType, TilePropagatorOptions,
+};
 use crate::topology::topo_array::TopoArray;
 use crate::topology::topo_array_1d::TopoArray1D;
 use crate::topology::topology::{Topology, TopologyError};
@@ -16,8 +15,38 @@ use crate::trackers::index_picker::IndexPicker;
 use crate::trackers::pattern_picker::PatternPicker;
 use crate::trackers::tracker::Tracker;
 use crate::trackers::weighted_random_pattern_picker::WeightedRandomPatternPicker;
-use crate::wfc::backtrack_policy::{BacktrackPolicy, ConstantBacktrackPolicy, PatienceBackjumpPolicy};
-use crate::wfc::wave_propagator::{ModelConstraintAlgorithm, WaveConstraint, WavePropagator, WavePropagatorOptions, WavePropagatorState};
+use crate::trait_error::TraitError;
+use crate::wfc::backtrack_policy::{
+    BacktrackPolicy, ConstantBacktrackPolicy, PatienceBackjumpPolicy,
+};
+use crate::wfc::wave_propagator::{
+    ModelConstraintAlgorithm, WaveConstraint, WavePropagator, WavePropagatorError,
+    WavePropagatorOptions, WavePropagatorState,
+};
+use std::cell::RefCell;
+use std::marker::PhantomData;
+use std::rc::Rc;
+
+#[derive(Debug, thiserror::Error)]
+pub enum TilePropagatorError {
+    #[error(
+        "connected Pick Heuristic is incompatible with the selected IndexPickerType {index_picker_type}"
+    )]
+    IncompatibleHeuristic { index_picker_type: String },
+
+    #[error("no index picker was created")]
+    NoIndexPicker,
+
+    #[error("no pattern picker was created")]
+    NoPatternPicker,
+
+    #[error(transparent)]
+    TraitError(#[from] TraitError),
+    #[error(transparent)]
+    TopologyError(#[from] TopologyError),
+    #[error(transparent)]
+    WavePropagatorError(#[from] WavePropagatorError),
+}
 
 /// TilePropagator is the main entrypoint to the DeBroglie library.
 /// It takes a TileModel and an output Topology and generates
@@ -27,28 +56,34 @@ use crate::wfc::wave_propagator::{ModelConstraintAlgorithm, WaveConstraint, Wave
 /// The only thing this class handles is conversion of tile objects into sets of patterns
 /// and coordinate conversion.
 pub struct TilePropagator<T>
-where T: Topology + Clone + 'static
+where
+    T: Topology + Clone + 'static,
 {
     wave_propagator: WavePropagator<T>,
     state: TilePropagatorState<T>,
 }
 
 pub struct TilePropagatorState<T>
-where T: Topology + Clone + 'static {
+where
+    T: Topology + Clone + 'static,
+{
     topology: T,
     tile_model: Box<dyn TileModel<T>>,
     tile_model_mapping: TileModelMapping<T>,
 }
 
 impl<T> TilePropagatorState<T>
-where T: Topology + Clone + 'static {
+where
+    T: Topology + Clone + 'static,
+{
     pub fn get_topology(&self) -> &T {
         &self.topology
     }
 }
 
 impl<T> TilePropagator<T>
-where T: Topology + Clone + 'static
+where
+    T: Topology + Clone + 'static,
 {
     /// Creates a new TilePropagator with default options, and returns a reference to it under an RcRefCell.
     /// TilePropagator must be under an RcRefCell, as its numerous dependencies require a reference
@@ -58,9 +93,13 @@ where T: Topology + Clone + 'static
         topology: T,
         backtrack: bool,
         constraints: Option<Vec<Box<dyn TileConstraint<T>>>>,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, TilePropagatorError> {
         let options = TilePropagatorOptions {
-            backtrack: if backtrack { BacktrackType::Backtrack } else { BacktrackType::None },
+            backtrack: if backtrack {
+                BacktrackType::Backtrack
+            } else {
+                BacktrackType::None
+            },
             max_backtrack_depth: 0,
             constraints: constraints.unwrap_or(Vec::new()),
             random_double: Rc::new(|| {
@@ -97,7 +136,7 @@ where T: Topology + Clone + 'static
         mut tile_model: Box<dyn TileModel<T>>,
         topology: T,
         options: TilePropagatorOptions<i32, T>,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, TilePropagatorError> {
         let tile_model_mapping = tile_model.get_tile_model_mapping(&topology)?;
         let pattern_model = tile_model_mapping.pattern_model.clone();
 
@@ -124,11 +163,8 @@ where T: Topology + Clone + 'static
             tile_model_mapping,
         };
 
-        let mut wave_propagator = WavePropagator::new(
-            pattern_model,
-            wave_propagator_options,
-            &state,
-        )?;
+        let mut wave_propagator =
+            WavePropagator::new(pattern_model, wave_propagator_options, &state)?;
 
         wave_propagator.clear(&state)?;
 
@@ -138,7 +174,9 @@ where T: Topology + Clone + 'static
         })
     }
 
-    fn make_backtrack_policy(options: &TilePropagatorOptions<i32, T>) -> Result<Option<Box<dyn BacktrackPolicy<T>>>, String> {
+    fn make_backtrack_policy(
+        options: &TilePropagatorOptions<i32, T>,
+    ) -> Result<Option<Box<dyn BacktrackPolicy<T>>>, TilePropagatorError> {
         match options.backtrack {
             BacktrackType::None => Ok(None),
             BacktrackType::Backtrack => Ok(Some(Box::new(ConstantBacktrackPolicy::new(1)))),
@@ -149,21 +187,25 @@ where T: Topology + Clone + 'static
     fn make_pickers(
         options: &TilePropagatorOptions<i32, T>,
         tile_model_mapping: &TileModelMapping<T>,
-    ) -> Result<(Box<dyn IndexPicker<T>>, Box<dyn PatternPicker<T>>), String> {
-        let connected_constraint = options.constraints
-            .iter()
-            .find(|c| {
-                // Check if the constraint is a ConnectedConstraint
-                // This is a simplified check - will need to implement proper type checking
-                false // For now, assume no connected constraints
-            });
+    ) -> Result<(Box<dyn IndexPicker<T>>, Box<dyn PatternPicker<T>>), TilePropagatorError> {
+        let connected_constraint = options.constraints.iter().find(|c| {
+            // Check if the constraint is a ConnectedConstraint
+            // This is a simplified check - will need to implement proper type checking
+            false // For now, assume no connected constraints
+        });
 
         let connected_pick_heuristic = connected_constraint.is_some();
 
         if connected_pick_heuristic {
             match options.index_picker_type {
-                IndexPickerType::Default | IndexPickerType::MinEntropy | IndexPickerType::Ordered => {},
-                _ => return Err(format!("Connected Pick Heuristic is incompatible with the selected IndexPickerType {:?}", options.index_picker_type)),
+                IndexPickerType::Default
+                | IndexPickerType::MinEntropy
+                | IndexPickerType::Ordered => {}
+                _ => {
+                    return Err(TilePropagatorError::IncompatibleHeuristic {
+                        index_picker_type: format!("{:?}", options.index_picker_type),
+                    });
+                }
             }
         }
 
@@ -183,7 +225,7 @@ where T: Topology + Clone + 'static
                 //     let inner_picker = Self::move_out(inner_picker);
                 //     index_picker = Some(Arc::new(Mutex::new(Box::new(inner_picker))));
                 // }
-            },
+            }
             IndexPickerType::ArrayPriorityMinEntropy => {
                 unimplemented!();
                 // if options.weight_set_by_index.lock().is_err() {
@@ -203,17 +245,17 @@ where T: Topology + Clone + 'static
                 // println!("ArrayPriorityEntropyTracker"); // TODO: Remove
                 // index_picker = Some(to_index_picker(entropy_tracker.clone()));
                 // pattern_picker = Some(to_pattern_picker(entropy_tracker.clone()));
-            },
+            }
             IndexPickerType::MinEntropy => {
                 // println!("EntropyTracker"); // TODO: Remove
                 let ip = EntropyTracker::new();
                 index_picker = Some(Box::new(ip));
-            },
+            }
             IndexPickerType::Default | IndexPickerType::HeapMinEntropy => {
                 // println!("HeapEntropyTracker"); // TODO: Remove
                 let ip = HeapEntropyTracker::new_empty();
                 index_picker = Some(Box::new(ip));
-            },
+            }
             IndexPickerType::Dirty => {
                 unimplemented!();
                 // let mapping = ctx.tile_model_mappings().get(tile_model_mapping).unwrap();
@@ -230,7 +272,7 @@ where T: Topology + Clone + 'static
                 // println!("DirtyIndexPicker"); // TODO: Remove
                 //
                 // index_picker = Some(to_index_picker(dirty_index_picker.clone()));
-            },
+            }
         }
 
         if pattern_picker.is_none() {
@@ -239,12 +281,12 @@ where T: Topology + Clone + 'static
                     // println!("WeightedRandomPatternPicker"); // TODO: Remove
                     let pp = WeightedRandomPatternPicker::new();
                     pattern_picker = Some(Box::new(pp));
-                },
+                }
                 TilePickerType::Ordered => {
                     // println!("SimplePatternPicker"); // TODO: Remove
                     unimplemented!();
                     // pattern_picker = Some(to_pattern_picker(SimplePatternPicker::new()));
-                },
+                }
                 TilePickerType::ArrayPriority => {
                     unimplemented!();
                     // let weight_set_collection = WeightSetCollection::new(
@@ -256,7 +298,7 @@ where T: Topology + Clone + 'static
                     // let pp = Arc::new(Mutex::new(pp));
                     // println!("ArrayPriorityEntropyTracker"); // TODO: Remove
                     // pattern_picker = Some(to_pattern_picker(pp));
-                },
+                }
             }
         }
 
@@ -275,19 +317,18 @@ where T: Topology + Clone + 'static
         }
 
         if index_picker.is_none() {
-            return Err("No index picker was created".to_string());
+            return Err(TilePropagatorError::NoIndexPicker);
         }
         if pattern_picker.is_none() {
-            return Err("No pattern picker was created".to_string());
+            return Err(TilePropagatorError::NoPatternPicker);
         }
 
-        Ok((
-            index_picker.unwrap(),
-            pattern_picker.unwrap(),
-        ))
+        Ok((index_picker.unwrap(), pattern_picker.unwrap()))
     }
 
-    fn convert_constraints(constraints: &Vec<Box<dyn TileConstraint<T>>>) -> Result<Vec<WaveConstraint>, String> {
+    fn convert_constraints(
+        constraints: &Vec<Box<dyn TileConstraint<T>>>,
+    ) -> Result<Vec<WaveConstraint>, TilePropagatorError> {
         // println!("Have {} constraints", constraints.len());
         return Ok(Vec::new());
         // let mut wave_constraints = Vec::new();
@@ -304,34 +345,42 @@ where T: Topology + Clone + 'static
     }
 
     /// Repeatedly Steps until the status is Decided or Contradiction.
-    pub fn run(&mut self) -> Result<Resolution, String> {
-        self.wave_propagator.run(&self.state.tile_model_mapping, self.state.get_topology())
+    pub fn run(&mut self) -> Result<Resolution, WavePropagatorError> {
+        self.wave_propagator
+            .run(&self.state.tile_model_mapping, self.state.get_topology())
     }
 
     /// Converts the generated results to an array of values.
-    pub fn to_value_array(&self) -> Result<Box<dyn TopoArray<TileVisual, T>>, String> {
+    pub fn to_value_array(&self) -> Result<Box<dyn TopoArray<TileVisual, T>>, TilePropagatorError> {
         self.to_value_array_with_defaults()
     }
 
     /// Converts the generated results to an array of values with defaults.
     pub fn to_value_array_with_defaults(
         &self,
-    ) -> Result<Box<dyn TopoArray<TileVisual, T>>, String> {
+    ) -> Result<Box<dyn TopoArray<TileVisual, T>>, TilePropagatorError> {
         let index_count = self.state.topology.index_count();
         let mut values = Vec::with_capacity(index_count);
 
         for i in 0..index_count {
-            values.push(self.get_value_with_defaults(i)
-                .unwrap_or_else(|| TileVisual::Default));
+            values.push(
+                self.get_value_with_defaults(i)
+                    .unwrap_or_else(|| TileVisual::Default),
+            );
         }
 
         // Create a simple 1D topology array wrapper
-        Ok(Box::new(TopoArray1D::new(values, self.state.topology.clone())))
+        Ok(Box::new(TopoArray1D::new(
+            values,
+            self.state.topology.clone(),
+        )))
     }
 
     /// Gets the value of a Tile that has been decided at a given index with defaults.
     pub fn get_value_with_defaults(&self, index: usize) -> Option<TileVisual> {
-        let (pattern_index, o) = self.state.tile_model_mapping
+        let (pattern_index, o) = self
+            .state
+            .tile_model_mapping
             .get_tile_coord_to_pattern_coord_by_index(index);
         let pattern = self.wave_propagator.get_decided_pattern(pattern_index)?;
 
@@ -339,7 +388,12 @@ where T: Topology + Clone + 'static
             -1 => None, // Resolution::Undecided
             -2 => None, // Resolution::Contradiction
             _ => {
-                if let Some(patterns_to_tiles) = self.state.tile_model_mapping.patterns_to_tiles_by_offset.get(&o) {
+                if let Some(patterns_to_tiles) = self
+                    .state
+                    .tile_model_mapping
+                    .patterns_to_tiles_by_offset
+                    .get(&o)
+                {
                     if let Some(tile_id) = patterns_to_tiles.get(&(pattern as usize)) {
                         let tile = self.state.tile_model.get_tile(tile_id.0);
                         let mut visual: Option<TileVisual> = None;
@@ -371,7 +425,9 @@ impl<T: Clone + 'static> DummyTopoArray<T> {
     }
 }
 
-impl<T: Clone + 'static, TopoT: Topology + Clone + 'static> TopoArray<T, TopoT> for DummyTopoArray<T> {
+impl<T: Clone + 'static, TopoT: Topology + Clone + 'static> TopoArray<T, TopoT>
+    for DummyTopoArray<T>
+{
     fn topology(&self) -> Option<&TopoT> {
         unimplemented!();
     }
@@ -405,14 +461,27 @@ impl<T: Clone + 'static, TopoT: Topology + Clone + 'static> TopoArray<T, TopoT> 
     }
 }
 
-pub struct AsIndexPicker<T: Topology + Clone, R: IndexPicker<T> + 'static>(pub Rc<RefCell<R>>, PhantomData<T>);
+pub struct AsIndexPicker<T: Topology + Clone, R: IndexPicker<T> + 'static>(
+    pub Rc<RefCell<R>>,
+    PhantomData<T>,
+);
 impl<T: Topology + Clone, R: IndexPicker<T>> IndexPicker<T> for AsIndexPicker<T, R> {
-    fn init(&mut self, wave_propagator_state: &WavePropagatorState<T>, topology: &T) -> Result<(), String> {
+    fn init(
+        &mut self,
+        wave_propagator_state: &WavePropagatorState<T>,
+        topology: &T,
+    ) -> Result<(), TraitError> {
         self.0.borrow_mut().init(wave_propagator_state, topology)
     }
 
-    fn get_random_index(&mut self, wave_propagator_state: &WavePropagatorState<T>, tile_model_mapping: &TileModelMapping<T>) -> Option<i32> {
-        self.0.borrow_mut().get_random_index(wave_propagator_state, tile_model_mapping)
+    fn get_random_index(
+        &mut self,
+        wave_propagator_state: &WavePropagatorState<T>,
+        tile_model_mapping: &TileModelMapping<T>,
+    ) -> Option<i32> {
+        self.0
+            .borrow_mut()
+            .get_random_index(wave_propagator_state, tile_model_mapping)
     }
 
     fn as_tracker(&self) -> Option<&dyn Tracker<T>> {
@@ -431,6 +500,11 @@ impl<T: Topology + Clone, R: IndexPicker<T>> IndexPicker<T> for AsIndexPicker<T,
         None
     }
 }
-pub fn to_index_picker<T: Topology + Clone + 'static, R: IndexPicker<T> +'static>(index_picker: Rc<RefCell<R>>) -> Rc<RefCell<dyn IndexPicker<T>>> {
-    Rc::new(RefCell::new(AsIndexPicker(index_picker.clone(), PhantomData)))
+pub fn to_index_picker<T: Topology + Clone + 'static, R: IndexPicker<T> + 'static>(
+    index_picker: Rc<RefCell<R>>,
+) -> Rc<RefCell<dyn IndexPicker<T>>> {
+    Rc::new(RefCell::new(AsIndexPicker(
+        index_picker.clone(),
+        PhantomData,
+    )))
 }

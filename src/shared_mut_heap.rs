@@ -1,7 +1,7 @@
+use crate::heap::HeapNode;
 use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::rc::Rc;
-use crate::heap::HeapNode;
 
 /// Implements a basic min-key heap.
 /// Items are kept in an RcRefCell so they can be mutated by both this class and the parent.
@@ -108,11 +108,13 @@ where
         let r = Self::right(i);
 
         // Find the smallest among i, left child, and right child
-        if l < self.size && self.data[l].borrow_mut().key() < self.data[smallest].borrow_mut().key() {
+        if l < self.size && self.data[l].borrow_mut().key() < self.data[smallest].borrow_mut().key()
+        {
             smallest = l;
         }
 
-        if r < self.size && self.data[r].borrow_mut().key() < self.data[smallest].borrow_mut().key() {
+        if r < self.size && self.data[r].borrow_mut().key() < self.data[smallest].borrow_mut().key()
+        {
             smallest = r;
         }
 
@@ -193,13 +195,16 @@ where
             return;
         }
 
-        if item_heap_index == self.size - 1 { // i.e. we're removing the last element
+        if item_heap_index == self.size - 1 {
+            // i.e. we're removing the last element
             self.size -= 1;
         } else {
             // Move last item to deleted position
             let last_index = self.size - 1;
             self.data.swap(item_heap_index, last_index);
-            self.data[item_heap_index].borrow_mut().set_heap_index(Some(item_heap_index));
+            self.data[item_heap_index]
+                .borrow_mut()
+                .set_heap_index(Some(item_heap_index));
             self.size -= 1;
             let item_index = self.data[item_heap_index].borrow_mut().index();
 
@@ -270,7 +275,9 @@ mod tests {
         fn key(&self) -> i32 {
             self.key
         }
-        fn index(&self) -> usize { self.index }
+        fn index(&self) -> usize {
+            self.index
+        }
     }
 
     #[test]

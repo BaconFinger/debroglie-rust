@@ -1,7 +1,7 @@
-use std::any::Any;
-use std::fmt;
 use crate::topology::direction::{Direction, EdgeLabel};
 use crate::topology::grid_topology::GridTopology;
+use std::any::Any;
+use std::fmt;
 
 /// Error types for topology operations
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -23,7 +23,11 @@ impl fmt::Display for TopologyError {
                 write!(f, "Coordinate ({}, {}, {}) is out of bounds", x, y, z)
             }
             TopologyError::InvalidMaskLength { expected, actual } => {
-                write!(f, "Invalid mask length: expected {}, got {}", expected, actual)
+                write!(
+                    f,
+                    "Invalid mask length: expected {}, got {}",
+                    expected, actual
+                )
             }
 
             TopologyError::Other(s) => write!(f, "Other error: {}", s),
@@ -160,11 +164,21 @@ pub trait Topology {
     }
 
     /// 2D convenience methods
-    fn try_move_2d(&self, x: usize, y: usize, direction: Direction) -> Result<Option<usize>, TopologyError> {
+    fn try_move_2d(
+        &self,
+        x: usize,
+        y: usize,
+        direction: Direction,
+    ) -> Result<Option<usize>, TopologyError> {
         self.try_move_coord(x, y, 0, direction)
     }
 
-    fn try_move_2d_to_coord(&self, x: usize, y: usize, direction: Direction) -> Result<Option<(usize, usize)>, TopologyError> {
+    fn try_move_2d_to_coord(
+        &self,
+        x: usize,
+        y: usize,
+        direction: Direction,
+    ) -> Result<Option<(usize, usize)>, TopologyError> {
         match self.try_move_coord_to_coord(x, y, 0, direction)? {
             Some((dest_x, dest_y, _)) => Ok(Some((dest_x, dest_y))),
             None => Ok(None),
@@ -190,8 +204,7 @@ pub trait Topology {
 
     /// Attempts to downcast this topology to a GridTopology
     fn as_grid_topology(&self) -> Result<&GridTopology, TopologyError> {
-        self
-            .as_any()
+        self.as_any()
             .downcast_ref::<GridTopology>()
             .ok_or_else(|| TopologyError::Other("Expected a grid-based topology".to_string()))
     }

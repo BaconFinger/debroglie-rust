@@ -1,12 +1,12 @@
-use std::marker::PhantomData;
 use crate::models::tile_model_mapping::TileModelMapping;
 use crate::topology::topology::Topology;
 use crate::trackers::index_picker::IndexPicker;
 use crate::trackers::pattern_picker::PatternPicker;
 use crate::trackers::random_picker_utils::RandomPickerUtils;
-use crate::trackers::tracker::{Tracker};
+use crate::trackers::tracker::Tracker;
 use crate::trait_error::TraitError;
 use crate::wfc::wave_propagator::WavePropagatorState;
+use std::marker::PhantomData;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum WeightedRandomPatternPickerError {}
@@ -14,26 +14,33 @@ pub enum WeightedRandomPatternPickerError {}
 #[derive(Default)]
 pub struct WeightedRandomPatternPicker<T: Topology + Clone> {
     frequencies: Option<Vec<f64>>,
-    phantom_data: PhantomData<T>
+    phantom_data: PhantomData<T>,
 }
 
 impl<T: Topology + Clone> WeightedRandomPatternPicker<T> {
     pub fn new() -> Self {
         Self {
             frequencies: None,
-            phantom_data: PhantomData
+            phantom_data: PhantomData,
         }
     }
 }
 
 impl<T: Topology + Clone> PatternPicker<T> for WeightedRandomPatternPicker<T> {
-
-    fn init(&mut self, wave_propagator_state: &WavePropagatorState<T>, topology: &T) -> Result<(), TraitError> {
+    fn init(
+        &mut self,
+        wave_propagator_state: &WavePropagatorState<T>,
+        topology: &T,
+    ) -> Result<(), TraitError> {
         self.frequencies = Some(wave_propagator_state.get_frequencies());
         Ok(())
     }
 
-    fn get_random_possible_pattern_at(&mut self, index: usize, wave_propagator_state: &WavePropagatorState<T>) -> Option<usize> {
+    fn get_random_possible_pattern_at(
+        &mut self,
+        index: usize,
+        wave_propagator_state: &WavePropagatorState<T>,
+    ) -> Option<usize> {
         if wave_propagator_state.get_wave().is_none() {
             println!("No wave set for WeightedRandomPatternPicker");
             return None;
@@ -48,11 +55,7 @@ impl<T: Topology + Clone> PatternPicker<T> for WeightedRandomPatternPicker<T> {
         )?;
 
         #[allow(unused_comparisons)]
-        if pattern < 0 {
-            None
-        } else {
-            Some(pattern)
-        }
+        if pattern < 0 { None } else { Some(pattern) }
     }
 
     fn as_tracker(&self) -> Option<&dyn Tracker<T>> {

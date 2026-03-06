@@ -85,13 +85,17 @@ where
     {
         let mut data: Vec<T> = items.into_iter().collect();
         let size = data.len();
-    
+
         // Set heap indices
         for (i, item) in data.iter_mut().enumerate() {
             item.set_heap_index(Some(i));
         }
-    
-        let mut heap = Self { data, size, _phantom: PhantomData };
+
+        let mut heap = Self {
+            data,
+            size,
+            _phantom: PhantomData,
+        };
         heap.heapify();
         heap
     }
@@ -231,7 +235,8 @@ where
 
     /// Called when an item's key has increased, returns the new heap_index.
     pub fn increased_key(&mut self, item_heap_index: usize, item_index: Option<usize>) -> usize {
-        if item_heap_index < self.size && item_index.is_some() { // TODO: Maybe this is a problem?
+        if item_heap_index < self.size && item_index.is_some() {
+            // TODO: Maybe this is a problem?
             return self.heapify_at_with_new_index(item_heap_index, item_index.unwrap()); // Safe because we checked that item_index is Some
         }
         self.heapify_at(item_heap_index);
@@ -382,7 +387,9 @@ mod tests {
         fn key(&self) -> i32 {
             self.key
         }
-        fn index(&self) -> usize { self.index }
+        fn index(&self) -> usize {
+            self.index
+        }
     }
 
     #[test]

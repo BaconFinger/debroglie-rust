@@ -1,7 +1,7 @@
-use std::any::Any;
-use std::fmt;
 use crate::topology::direction::{Direction, DirectionSet, EdgeLabel};
 use crate::topology::topology::{Topology, TopologyError};
+use std::any::Any;
+use std::fmt;
 
 /// A grid topology is a topology with a regular repeating pattern.
 /// It supports more operations than a generic topology.
@@ -55,7 +55,9 @@ impl GridTopology {
         periodic_y: bool,
         mask: Option<Vec<bool>>,
     ) -> Result<Self, GridTopologyError> {
-        Self::new_checked(directions, width, height, 1, periodic_x, periodic_y, false, mask)
+        Self::new_checked(
+            directions, width, height, 1, periodic_x, periodic_y, false, mask,
+        )
     }
 
     /// Constructs a topology.
@@ -272,7 +274,11 @@ impl GridTopology {
     }
 
     /// Try to move from an index in a direction, returning just the destination
-    pub fn try_move(&self, index: usize, direction: Direction) -> Result<Option<usize>, GridTopologyError> {
+    pub fn try_move(
+        &self,
+        index: usize,
+        direction: Direction,
+    ) -> Result<Option<usize>, GridTopologyError> {
         let (x, y, z) = self.get_coord(index)?;
         self.try_move_coord(x, y, z, direction)
     }
@@ -393,7 +399,6 @@ impl GridTopology {
 }
 
 impl Topology for GridTopology {
-
     fn index_count(&self) -> usize {
         self.width * self.height * self.depth
     }
@@ -436,12 +441,16 @@ impl Topology for GridTopology {
         Ok(x + y * self.width + z * self.width * self.height)
     }
 
-    fn try_move_full(&self, index: usize, direction: Direction) -> Result<Option<(usize, Direction, EdgeLabel)>, TopologyError> {
+    fn try_move_full(
+        &self,
+        index: usize,
+        direction: Direction,
+    ) -> Result<Option<(usize, Direction, EdgeLabel)>, TopologyError> {
         let result = self.get_coord(index);
         if result.is_err() {
             return Err(TopologyError::Other(result.unwrap_err().to_string()));
         }
-        let (x, y, z) =  result.unwrap(); // OK because already checked for error
+        let (x, y, z) = result.unwrap(); // OK because already checked for error
         let inverse_direction = self.directions.inverse(direction);
         let edge_label = EdgeLabel::from(direction);
 
@@ -449,7 +458,8 @@ impl Topology for GridTopology {
         if result.is_err() {
             return Err(TopologyError::Other(result.unwrap_err().to_string()));
         }
-        if let Some(dest) = result.unwrap() { // OK because already checked for error
+        if let Some(dest) = result.unwrap() {
+            // OK because already checked for error
             Ok(Some((dest, inverse_direction, edge_label)))
         } else {
             Ok(None)
@@ -462,7 +472,7 @@ impl Topology for GridTopology {
 
     fn with_mask(&self, mask: Vec<bool>) -> Result<Self, TopologyError>
     where
-        Self: Sized
+        Self: Sized,
     {
         unimplemented!();
     }
@@ -502,13 +512,28 @@ impl fmt::Display for GridTopologyError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             GridTopologyError::InvalidMaskLength { expected, actual } => {
-                write!(f, "Mask size doesn't fit the topology: expected {}, got {}", expected, actual)
+                write!(
+                    f,
+                    "Mask size doesn't fit the topology: expected {}, got {}",
+                    expected, actual
+                )
             }
             GridTopologyError::IndexOutOfBounds { index, max } => {
                 write!(f, "Index {} is out of bounds (max: {})", index, max)
             }
-            GridTopologyError::CoordinateOutOfBounds { x, y, z, width, height, depth } => {
-                write!(f, "Coordinate ({}, {}, {}) is out of bounds for grid ({}×{}×{})", x, y, z, width, height, depth)
+            GridTopologyError::CoordinateOutOfBounds {
+                x,
+                y,
+                z,
+                width,
+                height,
+                depth,
+            } => {
+                write!(
+                    f,
+                    "Coordinate ({}, {}, {}) is out of bounds for grid ({}×{}×{})",
+                    x, y, z, width, height, depth
+                )
             }
             GridTopologyError::DirectionOutOfBounds { direction, max } => {
                 write!(f, "Direction {} is out of bounds (max: {})", direction, max)
