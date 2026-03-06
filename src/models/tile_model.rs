@@ -1,3 +1,4 @@
+use std::error::Error;
 use crate::models::tile_model_mapping::TileModelMapping;
 use crate::tile::Tile;
 use crate::topology::topology::Topology;
@@ -9,8 +10,10 @@ use crate::topology::topology::Topology;
 /// with patterns (dense integers that correspond to particular
 /// arrangements of tiles).
 pub trait TileModel<TopologyT: Topology + Clone> {
+    type Error: Error + Send + Sync + 'static;
+
     /// Extracts the actual model of patterns used.
-    fn get_tile_model_mapping(&mut self, topology: &TopologyT) -> Result<TileModelMapping<TopologyT>, String>;
+    fn get_tile_model_mapping(&mut self, topology: &TopologyT) -> Result<TileModelMapping<TopologyT>, Self::Error>;
     fn get_tile(&self, index: usize) -> Option<&Tile>;
 
     // fn get_tile_model_mapping(&mut self, ctx: &Context<TopologyT>, topology: TopologyId) -> Result<TileModelMapping<TopologyT>, String>;

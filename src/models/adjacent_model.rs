@@ -2,13 +2,47 @@ use crate::models::tile_model::TileModel;
 use crate::topology::direction::{
     Direction, DirectionSet, DirectionSetType,
 };
-use crate::topology::grid_topology::GridTopology;
+use crate::topology::grid_topology::{GridTopology, GridTopologyError};
 use crate::topology::topo_array::{DefaultTopoArray, TopoArray};
-use crate::topology::topology::Topology;
+use crate::topology::topology::{Topology, TopologyError};
 use std::collections::{HashMap, HashSet};
+use std::fmt::Formatter;
 use crate::models::tile_model_mapping::TileModelMapping;
 use crate::tile::{Tile, TileId};
 use crate::wfc::pattern_model::PatternModel;
+
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum AdjacentModelError {
+    #[error("Directions must be set before calling this method")]
+    DirectionsNotSet,
+
+    #[error("Failed to get topology")]
+    NoTopology,
+
+    #[error("Failed to get tile at ({x}, {y}, {z})")]
+    CannotGetAtCoord { x: usize, y: usize, z: usize},
+
+    #[error("Failed to get direction from index {index}")]
+    CannotGetDirectionFromIndex { index: usize },
+
+    #[error("Failed to get adjacent tile at ({x}, {y}, {z})")]
+    CannotGetAdjacentTile { x: usize, y: usize, z: usize},
+
+    #[error("Sample is incompatible because {reason}")]
+    IncompatibleSample {reason: String},
+
+    #[error("No tiles have assigned frequencies")]
+    NoFrequencies,
+
+    #[error("Cannot set directions to {target} because it has already been set to {current}")]
+    CannotSetDirections {target: String, current: String},
+
+    // Error wrappers
+    #[error(transparent)]
+    Topology(#[from] TopologyError),
+    #[error(transparent)]
+    GridTopology(#[from] GridTopologyError),
+}
 
 /// AdjacentModel constrains which tiles can be placed adjacent to which other ones.
 /// It does so by maintaining for each tile, a list of tiles that can be placed next to it in each direction.
@@ -46,16 +80,15 @@ impl AdjacentModel {
     /// Sets the directions of the Adjacent model, if it has not been set at construction.
     /// This specifies how many neighbours each tile has.
     /// Once set, it cannot be changed.
-    pub fn set_directions(&mut self, directions: DirectionSet) -> Result<(), String> {
+    pub fn set_directions(&mut self, directions: DirectionSet) -> Result<(), AdjacentModelError> {
         if let Some(ref current_directions) = self.directions {
             if current_directions.direction_type() != DirectionSetType::Unknown
                 && current_directions.direction_type() != directions.direction_type()
             {
-                return Err(format!(
-                    "Cannot set directions to {:?}, it has already been set to {:?}",
-                    directions.direction_type(),
-                    current_directions.direction_type()
-                ));
+                return Err(AdjacentModelError::CannotSetDirections {
+                    target: format!("{:?}", directions.direction_type()),
+                    current: format!("{:?}", current_directions.direction_type()),
+                });
             }
         }
 
@@ -63,16 +96,16 @@ impl AdjacentModel {
         Ok(())
     }
 
-    fn require_directions(&self) -> Result<&DirectionSet, String> {
+    fn require_directions(&self) -> Result<&DirectionSet, AdjacentModelError> {
         match &self.directions {
             Some(directions) => {
                 if directions.direction_type() == DirectionSetType::Unknown {
-                    Err("Directions must be set before calling this method".to_string())
+                    Err(AdjacentModelError::DirectionsNotSet)
                 } else {
                     Ok(directions)
                 }
             }
-            None => Err("Directions must be set before calling this method".to_string()),
+            None => Err(AdjacentModelError::DirectionsNotSet),
         }
     }
 
@@ -80,9 +113,9 @@ impl AdjacentModel {
     pub fn add_sample_simple<T: Topology>(
         &mut self,
         sample: &dyn TopoArray<Tile, GridTopology>,
-    ) -> Result<(), String> {
+    ) -> Result<(), AdjacentModelError> {
         let (width, height, depth, direction_count) = {
-            let topology = sample.topology().ok_or("Failed to get topology")?;
+            let topology = sample.topology().ok_or(AdjacentModelError::NoTopology)?;
             self.set_directions(topology.directions().clone())?;
 
             let width = topology.width();
@@ -95,18 +128,17 @@ impl AdjacentModel {
         for z in 0..depth {
             for y in 0..height {
                 for x in 0..width {
-                    let index = sample.topology().ok_or("Failed to get topology")?
-                        .get_index(x, y, z)
-                        .map_err(|e| format!("Invalid coordinates ({}, {}, {}): {}", x, y, z, e))?;
+                    let index = sample.topology().ok_or(AdjacentModelError::NoTopology)?
+                        .get_index(x, y, z)?;
 
-                    if !sample.topology().ok_or("Failed to get topology")?.contains_index(index) {
+                    if !sample.topology().ok_or(AdjacentModelError::NoTopology)?.contains_index(index) {
                         continue;
                     }
 
                     // Need the tile to get the pattern.
                     let tile = sample.get_id_from_coord(x, y, z);
                     if tile.is_none() {
-                        return Err(format!("Failed to get tile at ({}, {}, {})", x, y, z))
+                        return Err(AdjacentModelError::CannotGetAtCoord { x, y, z})
                     }
                     let tile = TileId(tile.unwrap());
 
@@ -121,20 +153,17 @@ impl AdjacentModel {
                     let mut adjacent_tiles = Vec::new();
                     for d in 0..direction_count {
                         let direction = Direction::from_index(d)
-                            .ok_or(format!("unable to get direction from index {}", d))?;
-                        let result = sample.topology().ok_or("Failed to get topology")?.try_move_coord_to_coord(
+                            .ok_or(AdjacentModelError::CannotGetDirectionFromIndex { index: d})?;
+                        let result = sample.topology().ok_or(AdjacentModelError::NoTopology)?.try_move_coord_to_coord(
                             x,
                             y,
                             z,
                             direction,
-                        );
-                        if result.is_err() {
-                            return Err(result.unwrap_err().to_string());
-                        }
-                        if let Some((x2, y2, z2)) = result.unwrap() {
+                        )?;
+                        if let Some((x2, y2, z2)) = result {
                             let tile2 = sample
                                 .get_id_from_coord(x2, y2, z2)
-                                .ok_or("Failed to get adjacent tile".to_string())?;
+                                .ok_or(AdjacentModelError::CannotGetAdjacentTile { x: x2, y: y2, z: z2 })?;
                             adjacent_tiles.push((d, TileId(tile2)));
                         }
                     }
@@ -154,7 +183,7 @@ impl AdjacentModel {
             }
         }
 
-        self.sample = sample.clone_box().ok_or("Sample is incompatible as it cannot be cloned into a Box")?;
+        self.sample = sample.clone_box().ok_or(AdjacentModelError::IncompatibleSample {reason: "Cannot be cloned to Box".to_string()})?;
 
         Ok(())
     }
@@ -463,13 +492,15 @@ impl AdjacentModel {
 }
 
 impl TileModel<GridTopology> for AdjacentModel {
-    fn get_tile_model_mapping(&mut self, grid_topology: &GridTopology) -> Result<TileModelMapping<GridTopology>, String> {
+    type Error = AdjacentModelError;
+
+    fn get_tile_model_mapping(&mut self, grid_topology: &GridTopology) -> Result<TileModelMapping<GridTopology>, AdjacentModelError> {
         self.require_directions()?;
         self.set_directions(grid_topology.directions().clone())?;
 
         let total_frequency: f64 = self.frequencies.iter().sum();
         if total_frequency == 0.0 {
-            return Err("No tiles have assigned frequencies.".to_string());
+            return Err(AdjacentModelError::NoFrequencies);
         }
 
         // Convert propagator to the required format
