@@ -9,7 +9,7 @@ use crate::trait_error::TraitError;
 use crate::wfc::pattern_model::PatternModel;
 use std::collections::{HashMap, HashSet};
 
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum AdjacentModelError {
     #[error("Directions must be set before calling this method")]
     DirectionsNotSet,
@@ -18,13 +18,13 @@ pub enum AdjacentModelError {
     NoTopology,
 
     #[error("Failed to get tile at ({x}, {y}, {z})")]
-    CannotGetAtCoord { x: usize, y: usize, z: usize },
+    GetAtCoordFailed { x: usize, y: usize, z: usize },
 
     #[error("Failed to get direction from index {index}")]
-    CannotGetDirectionFromIndex { index: usize },
+    GetDirectionFromIndexFailed { index: usize },
 
     #[error("Failed to get adjacent tile at ({x}, {y}, {z})")]
-    CannotGetAdjacentTile { x: usize, y: usize, z: usize },
+    GetAdjacentTileFailed { x: usize, y: usize, z: usize },
 
     #[error("Sample is incompatible because {reason}")]
     IncompatibleSample { reason: String },
@@ -33,7 +33,7 @@ pub enum AdjacentModelError {
     NoFrequencies,
 
     #[error("Cannot set directions to {target} because it has already been set to {current}")]
-    CannotSetDirections { target: String, current: String },
+    IncompatibleDirections { target: String, current: String },
 
     // Error wrappers
     #[error(transparent)]
@@ -83,7 +83,7 @@ impl AdjacentModel {
             if current_directions.direction_type() != DirectionSetType::Unknown
                 && current_directions.direction_type() != directions.direction_type()
             {
-                return Err(AdjacentModelError::CannotSetDirections {
+                return Err(AdjacentModelError::IncompatibleDirections {
                     target: format!("{:?}", directions.direction_type()),
                     current: format!("{:?}", current_directions.direction_type()),
                 });
@@ -142,7 +142,7 @@ impl AdjacentModel {
                     // Need the tile to get the pattern.
                     let tile = sample.get_id_from_coord(x, y, z);
                     if tile.is_none() {
-                        return Err(AdjacentModelError::CannotGetAtCoord { x, y, z });
+                        return Err(AdjacentModelError::GetAtCoordFailed { x, y, z });
                     }
                     let tile = TileId(tile.unwrap());
 
@@ -157,14 +157,14 @@ impl AdjacentModel {
                     let mut adjacent_tiles = Vec::new();
                     for d in 0..direction_count {
                         let direction = Direction::from_index(d)
-                            .ok_or(AdjacentModelError::CannotGetDirectionFromIndex { index: d })?;
+                            .ok_or(AdjacentModelError::GetDirectionFromIndexFailed { index: d })?;
                         let result = sample
                             .topology()
                             .ok_or(AdjacentModelError::NoTopology)?
                             .try_move_coord_to_coord(x, y, z, direction)?;
                         if let Some((x2, y2, z2)) = result {
                             let tile2 = sample.get_id_from_coord(x2, y2, z2).ok_or(
-                                AdjacentModelError::CannotGetAdjacentTile {
+                                AdjacentModelError::GetAdjacentTileFailed {
                                     x: x2,
                                     y: y2,
                                     z: z2,

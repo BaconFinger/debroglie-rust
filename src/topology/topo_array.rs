@@ -10,7 +10,7 @@ pub trait TopoArray<T: Clone + 'static, Topo: Topology + Clone> {
     fn get_coord(&self, x: usize, y: usize, z: usize) -> Result<&T, TopologyError> {
         let index = self
             .topology()
-            .ok_or(TopologyError::Other("unable to get topology".to_string()))?
+            .ok_or(TopologyError::NoTopology)?
             .get_index(x, y, z)?;
         self.get_index(index)
     }

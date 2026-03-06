@@ -1,4 +1,3 @@
-use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Axis {
@@ -100,22 +99,11 @@ impl From<Direction> for EdgeLabel {
 }
 
 /// Error type for direction operations
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum DirectionError {
+    #[error("No direction corresponds to ({x}, {y}, {z})")]
     NoDirectionFound { x: i32, y: i32, z: i32 },
 }
-
-impl fmt::Display for DirectionError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            DirectionError::NoDirectionFound { x, y, z } => {
-                write!(f, "No direction corresponds to ({}, {}, {})", x, y, z)
-            }
-        }
-    }
-}
-
-impl std::error::Error for DirectionError {}
 
 /// Wrapper around DirectionSetType supplying some convenience data.
 #[derive(Debug, Clone, PartialEq, Eq)]

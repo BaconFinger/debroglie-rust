@@ -6,7 +6,7 @@ use crate::wfc::pattern_model::PatternModel;
 use crate::wfc::pattern_model_constraint::PatternModelConstraint;
 use crate::wfc::wave_propagator::{IndexPatternItem, WavePropagator, WavePropagatorState};
 
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum Act4PatternModelConstraintError {
     #[error("Ac4PatternModelConstraint not initialized")]
     NotInitialized,

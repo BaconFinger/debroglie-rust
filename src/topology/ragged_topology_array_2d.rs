@@ -2,6 +2,12 @@ use crate::topology::grid_topology::GridTopology;
 use crate::topology::topo_array::{TopoArray, TopoArray2D};
 use crate::topology::topology::{Topology, TopologyError};
 
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum RaggedTopoArray2DError {
+    #[error("Unable to get value for coordinate ({x}, {y})")]
+    CannotGetValueForCoordinate { x: usize, y: usize}
+}
+
 /// A 2D array with potentially different row lengths, coupled with a topology
 #[derive(Debug, Clone)]
 pub struct RaggedTopoArray2D<T> {
@@ -91,19 +97,13 @@ impl<T: Clone + 'static> TopoArray<T, GridTopology> for RaggedTopoArray2D<T> {
             .get(x)
             .ok_or(TopologyError::CoordinateOutOfBounds { x, y, z: 0 })?;
         self.get_value_from_index(index.clone())
-            .ok_or(TopologyError::Other(format!(
-                "Unable to get value for coordinate ({}, {})",
-                x, y
-            )))
+            .ok_or(TopologyError::TraitError(RaggedTopoArray2DError::CannotGetValueForCoordinate { x, y }.into()))
     }
 
     fn get_index(&self, index: usize) -> Result<&T, TopologyError> {
         let result = self.topology.get_coord(index);
         if result.is_err() {
-            return Err(TopologyError::Other(format!(
-                "GridTopologyError: {}",
-                result.unwrap_err().to_string()
-            )));
+            return Err(TopologyError::TraitError(result.unwrap_err().into()));
         }
         let (x, y, z) = result.unwrap();
         self.get_coord(x, y, z)
@@ -236,10 +236,7 @@ where
             .get(x)
             .ok_or(TopologyError::CoordinateOutOfBounds { x, y, z: 0 })?;
         self.get_value_from_index(index.clone())
-            .ok_or(TopologyError::Other(format!(
-                "Unable to get value for coordinate ({}, {})",
-                x, y
-            )))
+            .ok_or(TopologyError::TraitError(RaggedTopoArray2DError::CannotGetValueForCoordinate { x, y }.into()))
     }
 
     fn get_index(&self, index: usize) -> Result<&T, TopologyError> {

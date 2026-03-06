@@ -8,7 +8,13 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-pub enum ChangeTrackerError {}
+pub enum ChangeTrackerError {
+    #[error("ChangeTracker does not support more than {} executions", i32::MAX)]
+    TooManyExecutions,
+
+    #[error("unable to get mapping")]
+    NoMapping,
+}
 
 pub struct ChangeTracker<T: Topology + Clone> {
     index_count: usize,
@@ -60,10 +66,7 @@ impl<T: Topology + Clone> ChangeTracker<T> {
         self.generation += 1;
 
         if self.generation == i32::MAX {
-            return Err(TopologyError::Other(format!(
-                "Change Tracker doesn't support more than {} executions",
-                i32::MAX
-            )));
+            return Err(TopologyError::TraitError(ChangeTrackerError::TooManyExecutions.into()));
         }
 
         if tile_model_mapping
@@ -76,7 +79,7 @@ impl<T: Topology + Clone> ChangeTracker<T> {
             let mapping = tile_model_mapping
                 .pattern_coord_to_tile_coord_index_and_offset
                 .as_ref()
-                .ok_or(TopologyError::Other("unable to get mapping".to_string()))?;
+                .ok_or(TopologyError::TraitError(ChangeTrackerError::NoMapping.into()))?;
             let mut result = Vec::new();
 
             for i in current_changed_indices {

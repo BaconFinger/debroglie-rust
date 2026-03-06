@@ -1,7 +1,6 @@
 use crate::topology::direction::{Direction, DirectionSet, EdgeLabel};
 use crate::topology::topology::{Topology, TopologyError};
 use std::any::Any;
-use std::fmt;
 
 /// A grid topology is a topology with a regular repeating pattern.
 /// It supports more operations than a generic topology.
@@ -448,7 +447,7 @@ impl Topology for GridTopology {
     ) -> Result<Option<(usize, Direction, EdgeLabel)>, TopologyError> {
         let result = self.get_coord(index);
         if result.is_err() {
-            return Err(TopologyError::Other(result.unwrap_err().to_string()));
+            return Err(TopologyError::TraitError(result.unwrap_err().into()));
         }
         let (x, y, z) = result.unwrap(); // OK because already checked for error
         let inverse_direction = self.directions.inverse(direction);
@@ -456,7 +455,7 @@ impl Topology for GridTopology {
 
         let result = self.try_move_coord(x, y, z, direction);
         if result.is_err() {
-            return Err(TopologyError::Other(result.unwrap_err().to_string()));
+            return Err(TopologyError::TraitError(result.unwrap_err().into()));
         }
         if let Some(dest) = result.unwrap() {
             // OK because already checked for error
@@ -483,16 +482,21 @@ impl Topology for GridTopology {
 }
 
 /// Error types for GridTopology operations
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, thiserror::Error)]
 pub enum GridTopologyError {
+    #[error("Mask size doesn't fit the topology: expected {expected}, got {actual}")]
     InvalidMaskLength {
         expected: usize,
         actual: usize,
     },
+
+    #[error("Index {index} is out of bounds (max: {max})")]
     IndexOutOfBounds {
         index: usize,
         max: usize,
     },
+
+    #[error("Coordinate ({x}, {y}, {z}) is out of bounds for grid ({width}×{height}×{depth})")]
     CoordinateOutOfBounds {
         x: usize,
         y: usize,
@@ -501,49 +505,16 @@ pub enum GridTopologyError {
         height: usize,
         depth: usize,
     },
+
+    #[error("Direction {direction} is out of bounds (max: {max})")]
     DirectionOutOfBounds {
         direction: usize,
         max: usize,
     },
-    TopologyError(TopologyError),
-}
 
-impl fmt::Display for GridTopologyError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            GridTopologyError::InvalidMaskLength { expected, actual } => {
-                write!(
-                    f,
-                    "Mask size doesn't fit the topology: expected {}, got {}",
-                    expected, actual
-                )
-            }
-            GridTopologyError::IndexOutOfBounds { index, max } => {
-                write!(f, "Index {} is out of bounds (max: {})", index, max)
-            }
-            GridTopologyError::CoordinateOutOfBounds {
-                x,
-                y,
-                z,
-                width,
-                height,
-                depth,
-            } => {
-                write!(
-                    f,
-                    "Coordinate ({}, {}, {}) is out of bounds for grid ({}×{}×{})",
-                    x, y, z, width, height, depth
-                )
-            }
-            GridTopologyError::DirectionOutOfBounds { direction, max } => {
-                write!(f, "Direction {} is out of bounds (max: {})", direction, max)
-            }
-            GridTopologyError::TopologyError(e) => write!(f, "TopologyError {}", e),
-        }
-    }
+    #[error(transparent)]
+    TopologyError(#[from] TopologyError),
 }
-
-impl std::error::Error for GridTopologyError {}
 
 // TODO: Uncomment
 // #[cfg(test)]
