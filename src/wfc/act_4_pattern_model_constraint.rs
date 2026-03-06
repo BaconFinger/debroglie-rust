@@ -1,9 +1,22 @@
 use crate::resolution::Resolution;
 use crate::topology::direction::Direction;
-use crate::topology::topology::Topology;
+use crate::topology::topology::{Topology, TopologyError};
+use crate::trait_error::TraitError;
 use crate::wfc::pattern_model::PatternModel;
-use crate::wfc::pattern_model_constraint::PatternModelConstraint;
+use crate::wfc::pattern_model_constraint::{PatternModelConstraint};
 use crate::wfc::wave_propagator::{IndexPatternItem, WavePropagator, WavePropagatorState};
+
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum Act4PatternModelConstraintError {
+    #[error("Ac4PatternModelConstraint not initialized")]
+    NotInitialized,
+
+    #[error("No wave")]
+    NoWave,
+
+    #[error(transparent)]
+    Topology(#[from] TopologyError),
+}
 
 /// Implements pattern adjacency propagation using the arc consistency 4 algorithm.
 ///
@@ -89,9 +102,9 @@ impl<T: Topology + Clone> Ac4PatternModelConstraint<T> {
 }
 
 impl<T: Topology + Clone + 'static> PatternModelConstraint<T> for Ac4PatternModelConstraint<T> {
-    fn clear(&mut self, topology: &T, wave_propagator_state: &WavePropagatorState<T>) -> Result<Option<(usize, usize)>, String> {
+    fn clear(&mut self, topology: &T, wave_propagator_state: &WavePropagatorState<T>) -> Result<Option<(usize, usize)>, TraitError> {
         if !self.initialized {
-            return Err("Ac4PatternModelConstraint not initialized".to_string());
+            return Err(Box::new(Act4PatternModelConstraintError::NotInitialized));
         }
 
         self.to_propagate.clear();
@@ -116,12 +129,9 @@ impl<T: Topology + Clone + 'static> PatternModelConstraint<T> for Ac4PatternMode
 
             // Cache edge_labels
             for d in 0..self.directions_count {
-                let result = topology.try_move_full(index, Direction::from_index(d).unwrap());
-                if result.is_err() {
-                    return Err(format!("try_move_full {}", result.unwrap_err()));
-                }
+                let result = topology.try_move_full(index, Direction::from_index(d).unwrap())?;
                 edge_labels[d] = if let Some((_dest, _id, el)) =
-                    result.unwrap() {
+                    result {
                     el as i32
                 } else {
                     -1
@@ -137,7 +147,7 @@ impl<T: Topology + Clone + 'static> PatternModelConstraint<T> for Ac4PatternMode
 
                         if compatible_patterns == 0 {
                             let wave_exists = {
-                                let wave = wave_propagator_state.get_wave().as_ref().ok_or("No wave")?;
+                                let wave = wave_propagator_state.get_wave().as_ref().ok_or(Act4PatternModelConstraintError::NoWave)?;
                                 let result = wave.get(index, pattern);
                                 result
                             };
@@ -156,9 +166,9 @@ impl<T: Topology + Clone + 'static> PatternModelConstraint<T> for Ac4PatternMode
         Ok(None)
     }
 
-    fn do_ban(&mut self, index: usize, pattern: i32) -> Result<(), String> {
+    fn do_ban(&mut self, index: usize, pattern: i32) -> Result<(), TraitError> {
         if !self.initialized {
-            return Err("Ac4PatternModelConstraint not initialized".to_string());
+            return Err(Box::new(Act4PatternModelConstraintError::NotInitialized));
         }
 
         // Update compatible (so that we never ban twice)
@@ -172,9 +182,9 @@ impl<T: Topology + Clone + 'static> PatternModelConstraint<T> for Ac4PatternMode
         Ok(())
     }
 
-    fn undo_ban(&mut self, index: usize, pattern: i32, topology: &T) -> Result<(), String> {
+    fn undo_ban(&mut self, index: usize, pattern: i32, topology: &T) -> Result<(), TraitError> {
         if !self.initialized {
-            return Err("Ac4PatternModelConstraint not initialized".to_string());
+            return Err(Box::new(Act4PatternModelConstraintError::NotInitialized));
         }
 
         // Undo what was done in do_ban
@@ -199,11 +209,8 @@ impl<T: Topology + Clone + 'static> PatternModelConstraint<T> for Ac4PatternMode
         // Not in to_propagate, therefore undo what was done in propagate
         for d in 0..self.directions_count {
 
-            let result = topology.try_move_full(index, Direction::from_index(d).unwrap());
-            if result.is_err() {
-                return Err(format!("try_move_full {}", result.unwrap_err()));
-            }
-            if let Some((i2, id, el)) = result.unwrap() {
+            let result = topology.try_move_full(index, Direction::from_index(d).unwrap())?;
+            if let Some((i2, id, el)) = result {
                 let patterns = &self.propagator_array[pattern as usize][el as usize];
                 for &p in patterns {
                     self.compatible[i2][p][id as usize] += 1;
@@ -214,9 +221,9 @@ impl<T: Topology + Clone + 'static> PatternModelConstraint<T> for Ac4PatternMode
         Ok(())
     }
 
-    fn do_select(&mut self, index: usize, pattern: i32) -> Result<(), String> {
+    fn do_select(&mut self, index: usize, pattern: i32) -> Result<(), TraitError> {
         if !self.initialized {
-            return Err("Ac4PatternModelConstraint not initialized".to_string());
+            return Err(Box::new(Act4PatternModelConstraintError::NotInitialized));
         }
 
         // Update compatible (so that we never ban twice)
@@ -237,9 +244,9 @@ impl<T: Topology + Clone + 'static> PatternModelConstraint<T> for Ac4PatternMode
         Ok(())
     }
 
-    fn propagate(&mut self, topology: &T, wave_propagator: &mut WavePropagator<T>) -> Result<(), String> {
+    fn propagate(&mut self, topology: &T, wave_propagator: &mut WavePropagator<T>) -> Result<(), TraitError> {
         if !self.initialized {
-            return Err("Ac4PatternModelConstraint not initialized".to_string());
+            return Err(Box::new(Act4PatternModelConstraintError::NotInitialized));
         }
 
         while !self.to_propagate.is_empty() {
@@ -247,11 +254,8 @@ impl<T: Topology + Clone + 'static> PatternModelConstraint<T> for Ac4PatternMode
 
             // Get coordinates first
             let (x, y, z) = {
-                let result = topology.get_coord(item.index as usize);
-                if result.is_err() {
-                    return Err(format!("get_coord failed {}", result.unwrap_err()));
-                }
-                result.unwrap()
+                let result = topology.get_coord(item.index as usize)?;
+                result
             };
 
             if item.pattern >= 0 {
@@ -338,9 +342,9 @@ pub fn get_direction(d: usize) -> Direction {
 }
 
 impl<T: Topology + Clone> Ac4PatternModelConstraint<T> {
-    fn propagate_ban_core(&mut self, patterns: &[usize], i2: usize, d: usize) -> Result<Option<(usize, usize)>, String> {
+    fn propagate_ban_core(&mut self, patterns: &[usize], i2: usize, d: usize) -> Result<Option<(usize, usize)>, TraitError> {
         if !self.initialized {
-            return Err("Ac4PatternModelConstraint not initialized".to_string());
+            return Err(Box::new(Act4PatternModelConstraintError::NotInitialized));
         }
 
         // Hot loop
@@ -369,9 +373,9 @@ impl<T: Topology + Clone> Ac4PatternModelConstraint<T> {
         Ok(None)
     }
 
-    fn propagate_select_core(&mut self, patterns_dense: &[bool], i2: usize, id: usize) -> Result<Option<(usize, usize)>, String> {
+    fn propagate_select_core(&mut self, patterns_dense: &[bool], i2: usize, id: usize) -> Result<Option<(usize, usize)>, TraitError> {
         if !self.initialized {
-            return Err("Ac4PatternModelConstraint not initialized".to_string());
+            return Err(Box::new(Act4PatternModelConstraintError::NotInitialized));
         }
 
         for p in 0..self.pattern_count {

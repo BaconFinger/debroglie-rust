@@ -3,6 +3,7 @@ use crate::topology::topology::Topology;
 use crate::trackers::index_picker::IndexPicker;
 use crate::trackers::pattern_picker::PatternPicker;
 use crate::trackers::tracker::{Tracker};
+use crate::trait_error::TraitError;
 use crate::wfc::wave::Wave;
 use crate::wfc::wave_propagator::WavePropagatorState;
 
@@ -36,7 +37,7 @@ impl EntropyTracker {
     }
 
     // For debugging
-    pub fn init_debug<T: Topology + Clone + 'static>(&mut self, wave: &Wave, frequencies: Vec<f64>, mask: Option<Vec<bool>>) -> Result<(), EntropyTrackerError> {
+    pub fn init_debug<T: Topology + Clone + 'static>(&mut self, wave: &Wave, frequencies: Vec<f64>, mask: Option<Vec<bool>>) -> Result<(), TraitError> {
         self.frequencies = frequencies;
         self.pattern_count = self.frequencies.len();
         self.mask = mask;
@@ -58,9 +59,8 @@ impl EntropyTracker {
 }
 
 impl<T: Topology + Clone + 'static> IndexPicker<T> for EntropyTracker {
-    type Error = EntropyTrackerError;
 
-    fn init(&mut self, wave_propagator_state: &WavePropagatorState<T>, topology: &T) -> Result<(), EntropyTrackerError> {
+    fn init(&mut self, wave_propagator_state: &WavePropagatorState<T>, topology: &T) -> Result<(), TraitError> {
         {
             self.init_debug::<T>(
                 wave_propagator_state.get_wave().as_ref().ok_or(EntropyTrackerError::WaveError)?,
@@ -124,27 +124,25 @@ impl<T: Topology + Clone + 'static> IndexPicker<T> for EntropyTracker {
         Some(selected_index)
     }
 
-    fn as_tracker(&self) -> Option<&dyn Tracker<T, Error=EntropyTrackerError>> {
+    fn as_tracker(&self) -> Option<&dyn Tracker<T>> {
         Some(self)
     }
 
-    fn as_tracker_mut(&mut self) -> Option<&mut dyn Tracker<T, Error=EntropyTrackerError>> {
+    fn as_tracker_mut(&mut self) -> Option<&mut dyn Tracker<T>> {
         Some(self)
     }
 
-    fn as_pattern_picker(&self) -> Option<&dyn PatternPicker<T, Error=EntropyTrackerError>> {
+    fn as_pattern_picker(&self) -> Option<&dyn PatternPicker<T>> {
         None
     }
 
-    fn as_pattern_picker_mut(&mut self) -> Option<&mut dyn PatternPicker<T, Error=EntropyTrackerError>> {
+    fn as_pattern_picker_mut(&mut self) -> Option<&mut dyn PatternPicker<T>> {
         None
     }
 }
 
 impl<T: Topology + Clone + 'static> Tracker<T> for EntropyTracker {
-    type Error = EntropyTrackerError;
-
-    fn reset(&mut self) -> Result<(), EntropyTrackerError> {
+    fn reset(&mut self) -> Result<(), TraitError> {
         // Assumes Reset is called on a truly new Wave.
         let mut initial = EntropyValues::default();
         initial.plogp_sum = 0.0;
@@ -165,7 +163,7 @@ impl<T: Topology + Clone + 'static> Tracker<T> for EntropyTracker {
         Ok(())
     }
 
-    fn do_ban(&mut self, index: usize, pattern: usize) -> Result<(), EntropyTrackerError> {
+    fn do_ban(&mut self, index: usize, pattern: usize) -> Result<(), TraitError> {
         self.entropy_values[index].decrement(
             self.frequencies[pattern],
             self.plogp[pattern],
@@ -174,7 +172,7 @@ impl<T: Topology + Clone + 'static> Tracker<T> for EntropyTracker {
         Ok(())
     }
 
-    fn undo_ban(&mut self, index: usize, pattern: usize) -> Result<(), EntropyTrackerError> {
+    fn undo_ban(&mut self, index: usize, pattern: usize) -> Result<(), TraitError> {
         self.entropy_values[index].increment(
             self.frequencies[pattern],
             self.plogp[pattern],
@@ -183,19 +181,19 @@ impl<T: Topology + Clone + 'static> Tracker<T> for EntropyTracker {
         Ok(())
     }
 
-    fn as_pattern_picker(&self) -> Option<&dyn PatternPicker<T, Error=EntropyTrackerError>> {
+    fn as_pattern_picker(&self) -> Option<&dyn PatternPicker<T>> {
         None
     }
 
-    fn as_pattern_picker_mut(&mut self) -> Option<&mut dyn PatternPicker<T, Error=EntropyTrackerError>> {
+    fn as_pattern_picker_mut(&mut self) -> Option<&mut dyn PatternPicker<T>> {
         None
     }
 
-    fn as_index_picker(&self) -> Option<&dyn IndexPicker<T, Error=EntropyTrackerError>> {
+    fn as_index_picker(&self) -> Option<&dyn IndexPicker<T>> {
         Some(self)
     }
 
-    fn as_index_picker_mut(&mut self) -> Option<&mut dyn IndexPicker<T, Error=EntropyTrackerError>> {
+    fn as_index_picker_mut(&mut self) -> Option<&mut dyn IndexPicker<T>> {
         Some(self)
     }
 }

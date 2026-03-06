@@ -15,6 +15,7 @@ pub mod tile_propagator_options;
 pub mod constraints;
 pub mod shared_mut_heap;
 pub mod heap;
+pub mod trait_error;
 
 pub fn add(left: u64, right: u64) -> u64 {
     left + right

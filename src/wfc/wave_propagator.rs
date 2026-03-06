@@ -11,6 +11,7 @@ use crate::trackers::index_picker::IndexPicker;
 use crate::trackers::pattern_picker::PatternPicker;
 use crate::trackers::tracker::{ChoiceObserver, Tracker};
 use crate::trackers::weighted_random_pattern_picker::WeightedRandomPatternPicker;
+use crate::trait_error::TraitError;
 use crate::wfc::act_4_pattern_model_constraint::Ac4PatternModelConstraint;
 use crate::wfc::backtrack_policy::BacktrackPolicy;
 use crate::wfc::pattern_model::PatternModel;
@@ -45,6 +46,33 @@ pub enum ModelConstraintAlgorithm {
     Ac4,
     Ac3,
     OneStep,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum WavePropagatorError {
+    #[error("unable to get random index from pattern picker")]
+    CannotGetRandomIndex,
+
+    #[error("unable to internal_select")]
+    CannotInternalSelect,
+
+    #[error("unable to pop front from {from}")]
+    CannotPopFront {from: String},
+
+    #[error("unable to get backtrack policy")]
+    CannotGetBacktrackPolicy,
+
+    #[error("unable to get backjump")]
+    CannotGetBackjump,
+
+    #[error("unable to internal ban")]
+    CannotInternalBan,
+
+    #[error("unable to get wave")]
+    CannotGetWave,
+
+    #[error(transparent)]
+    TraitError(#[from] TraitError),
 }
 
 pub struct WavePropagator<T: Topology + Clone> {
@@ -132,7 +160,7 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
         model: PatternModel,
         options: WavePropagatorOptions<T>,
         tile_propagator_state: &TilePropagatorState<T>,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, WavePropagatorError> {
         let pattern_count = model.pattern_count();
         let frequencies = model.frequencies().clone();
         let index_count = tile_propagator_state.get_topology().index_count();
@@ -212,7 +240,7 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
     }
 
     /// Repeatedly step until the status is Decided or Contradiction
-    pub fn run(&mut self, tile_model_mapping: &TileModelMapping<T>, topology: &T) -> Result<Resolution, String> {
+    pub fn run(&mut self, tile_model_mapping: &TileModelMapping<T>, topology: &T) -> Result<Resolution, WavePropagatorError> {
         loop {
             let status = self.step(tile_model_mapping, topology)?;
             if status != Resolution::Undecided {
@@ -221,7 +249,7 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
         }
     }
 
-    pub fn clear(&mut self, tile_propagator_state: &TilePropagatorState<T>) -> Result<Resolution, String> {
+    pub fn clear(&mut self, tile_propagator_state: &TilePropagatorState<T>) -> Result<Resolution, WavePropagatorError> {
         let wave = Wave::new(self.pattern_count, self.index_count);
         self.state.wave = Some(wave);
 
@@ -278,7 +306,7 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
         Ok(self.state.status)
     }
 
-    fn init_constraints(&mut self, topology: &T, pattern_model_constraint: &mut dyn PatternModelConstraint<T>) -> Result<(), String> {
+    fn init_constraints(&mut self, topology: &T, pattern_model_constraint: &mut dyn PatternModelConstraint<T>) -> Result<(), WavePropagatorError> {
         // Note: constraints would need to be handled differently in Rust
         // This is a simplified version
         let constraints_len = self.constraints.len();
@@ -302,7 +330,7 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
         Ok(())
     }
 
-    pub fn step(&mut self, tile_model_mapping: &TileModelMapping<T>, topology: &T) -> Result<Resolution, String> {
+    pub fn step(&mut self, tile_model_mapping: &TileModelMapping<T>, topology: &T) -> Result<Resolution, WavePropagatorError> {
         let mut pattern_model_constraint_owner = mem::replace(&mut self.pattern_model_constraint, Box::new(OneStepPatternModelConstraint));
         let pattern_model_constraint: &mut dyn PatternModelConstraint<T> = &mut *pattern_model_constraint_owner;
         // println!("wave_propagator.step");
@@ -322,7 +350,7 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
             // Pick an index to use
             let index = {
                 self.index_picker.get_random_index(&self.state, tile_model_mapping)
-                    .ok_or("unable to get random index from pattern picker")?
+                    .ok_or(WavePropagatorError::CannotGetRandomIndex)?
             };
 
             if index == -1 {
@@ -350,7 +378,7 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
             self.record_backtrack(index, pattern as i32)?;
 
             // Use the pick
-            if self.internal_select(index as usize, pattern, pattern_model_constraint).ok_or("unable to internal_select")? {
+            if self.internal_select(index as usize, pattern, pattern_model_constraint).ok_or(WavePropagatorError::CannotInternalSelect)? {
                 self.state.status = Resolution::Contradiction;
             }
         }
@@ -397,7 +425,7 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
         self.deferred_constraints_step = false;
     }
 
-    fn record_backtrack(&mut self, index: i32, pattern: i32) -> Result<(), String> {
+    fn record_backtrack(&mut self, index: i32, pattern: i32) -> Result<(), WavePropagatorError> {
         // Extract everything we need in one lock acquisition
         let (backtrack_enabled, current_length, max_depth) = {
             let current_length = self.dropped_backtrack_items_count +
@@ -439,9 +467,9 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
             // Extract the dropped count before mutable borrow
             let dropped_count = self.dropped_backtrack_items_count;
             if let Some(ref mut lengths) = self.backtrack_items_lengths {
-                let new_dropped_count = lengths.pop_front().ok_or("unable to pop front from backtrack_items_lengths")?;
+                let new_dropped_count = lengths.pop_front().ok_or(WavePropagatorError::CannotPopFront {from: "backtrack_items_lengths".to_string()})?;
                 if let Some(ref mut choices) = self.prev_choices {
-                    choices.pop_front().ok_or("unable to pop front from prev_choices")?;
+                    choices.pop_front().ok_or(WavePropagatorError::CannotPopFront {from: "prev_choices".to_string()})?;
                 }
                 if let Some(ref mut items) = self.backtrack_items {
                     items.drain(..(new_dropped_count - dropped_count).min(items.len()));
@@ -491,12 +519,9 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
         Some(is_contradiction)
     }
 
-    fn process_tracker_result(res: Result<(), String>, method_name: &str) {
-        if res.is_err() {
-            let err = res.err().unwrap(); // Safe because checked above
-            if !err.contains("is not a Tracker") {
-                panic!("Unable to {} on super tracker: {}", method_name, err);
-            }
+    fn process_tracker_result(res: Result<(), TraitError>, method: &str) {
+        if let Err(err) = res {
+            println!("Tracker error on method {}: {}", method, err);
         }
     }
 
@@ -555,7 +580,7 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
         Some(false)
     }
 
-    fn try_backtrack_until_no_contradiction(&mut self, topology: &T, pattern_model_constraint: &mut dyn PatternModelConstraint<T>) -> Result<(), String> {
+    fn try_backtrack_until_no_contradiction(&mut self, topology: &T, pattern_model_constraint: &mut dyn PatternModelConstraint<T>) -> Result<(), WavePropagatorError> {
         if !self.backtrack {
             return Ok(());
         }
@@ -563,9 +588,9 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
         while self.state.status == Resolution::Contradiction {
             let backjump_amount = self.backtrack_policy
                 .as_mut()
-                .ok_or("unable to get backtrack policy")
+                .ok_or(WavePropagatorError::CannotGetBacktrackPolicy)
                 ?.get_backjump()
-                .ok_or("unable to get backjump")?;
+                .ok_or(WavePropagatorError::CannotGetBackjump)?;
 
             for _i in 0..backjump_amount {
                 let lengths_count = {
@@ -605,7 +630,7 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
                     // Mark the given choice as impossible
                     if let Some(item) = item {
                         if item.index >= 0 {
-                            if self.internal_ban(item.index as usize, item.pattern as usize, pattern_model_constraint).ok_or("unable to internal_ban")? {
+                            if self.internal_ban(item.index as usize, item.pattern as usize, pattern_model_constraint).ok_or(WavePropagatorError::CannotInternalBan)? {
                                 self.state.status = Resolution::Contradiction;
                             }
                         }
@@ -630,7 +655,7 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
     }
 
     // Undoes any work that was done since the last backtrack point
-    fn do_backtrack(&mut self, topology: &T) -> Result<(), String> {
+    fn do_backtrack(&mut self, topology: &T) -> Result<(), WavePropagatorError> {
         let target_length = if let Some(ref mut lengths) = self.backtrack_items_lengths {
             lengths.pop_back().unwrap_or(0) - self.dropped_backtrack_items_count
         } else {
@@ -656,7 +681,7 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
             let pattern = item.pattern as usize;
 
             // Add the possibility back
-            self.state.wave.as_mut().ok_or("unable to get wave")?.add_possibility(index, pattern);
+            self.state.wave.as_mut().ok_or(WavePropagatorError::CannotGetWave)?.add_possibility(index, pattern);
 
             // Undo the pattern model constraint
             self.pattern_model_constraint.undo_ban(index, pattern as i32, topology)?;

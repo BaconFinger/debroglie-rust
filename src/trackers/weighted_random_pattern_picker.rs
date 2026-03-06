@@ -5,6 +5,7 @@ use crate::trackers::index_picker::IndexPicker;
 use crate::trackers::pattern_picker::PatternPicker;
 use crate::trackers::random_picker_utils::RandomPickerUtils;
 use crate::trackers::tracker::{Tracker};
+use crate::trait_error::TraitError;
 use crate::wfc::wave_propagator::WavePropagatorState;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -26,9 +27,8 @@ impl<T: Topology + Clone> WeightedRandomPatternPicker<T> {
 }
 
 impl<T: Topology + Clone> PatternPicker<T> for WeightedRandomPatternPicker<T> {
-    type Error = WeightedRandomPatternPickerError;
-    
-    fn init(&mut self, wave_propagator_state: &WavePropagatorState<T>, topology: &T) -> Result<(), WeightedRandomPatternPickerError> {
+
+    fn init(&mut self, wave_propagator_state: &WavePropagatorState<T>, topology: &T) -> Result<(), TraitError> {
         self.frequencies = Some(wave_propagator_state.get_frequencies());
         Ok(())
     }
@@ -55,19 +55,19 @@ impl<T: Topology + Clone> PatternPicker<T> for WeightedRandomPatternPicker<T> {
         }
     }
 
-    fn as_tracker(&self) -> Option<&dyn Tracker<T, Error = WeightedRandomPatternPickerError>> {
+    fn as_tracker(&self) -> Option<&dyn Tracker<T>> {
         None
     }
 
-    fn as_tracker_mut(&mut self) -> Option<&mut dyn Tracker<T, Error = WeightedRandomPatternPickerError>> {
+    fn as_tracker_mut(&mut self) -> Option<&mut dyn Tracker<T>> {
         None
     }
 
-    fn as_index_picker(&self) -> Option<&dyn IndexPicker<T, Error = WeightedRandomPatternPickerError>> {
+    fn as_index_picker(&self) -> Option<&dyn IndexPicker<T>> {
         None
     }
 
-    fn as_index_picker_mut(&mut self) -> Option<&mut dyn IndexPicker<T, Error = WeightedRandomPatternPickerError>> {
+    fn as_index_picker_mut(&mut self) -> Option<&mut dyn IndexPicker<T>> {
         None
     }
 }

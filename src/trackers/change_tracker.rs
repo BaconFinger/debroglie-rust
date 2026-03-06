@@ -5,6 +5,7 @@ use crate::topology::topology::{Topology, TopologyError};
 use crate::trackers::index_picker::IndexPicker;
 use crate::trackers::pattern_picker::PatternPicker;
 use crate::trackers::tracker::Tracker;
+use crate::trait_error::TraitError;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ChangeTrackerError {}
@@ -83,8 +84,7 @@ impl<T: Topology + Clone> ChangeTracker<T> {
 }
 
 impl<T: Topology + Clone> Tracker<T> for ChangeTracker<T> {
-    type Error = ChangeTrackerError;
-    fn reset(&mut self) -> Result<(), ChangeTrackerError> {
+    fn reset(&mut self) -> Result<(), TraitError> {
         self.changed_indices = Vec::new();
         self.changed_indices2 = Vec::new();
         self.last_changed_generation = vec![0; self.index_count];
@@ -92,7 +92,7 @@ impl<T: Topology + Clone> Tracker<T> for ChangeTracker<T> {
         Ok(())
     }
 
-    fn do_ban(&mut self, index: usize, _pattern: usize) -> Result<(), ChangeTrackerError>{
+    fn do_ban(&mut self, index: usize, _pattern: usize) -> Result<(), TraitError>{
         let g = self.last_changed_generation[index];
         if g != self.generation {
             self.last_changed_generation[index] = self.generation;
@@ -101,7 +101,7 @@ impl<T: Topology + Clone> Tracker<T> for ChangeTracker<T> {
         Ok(())
     }
 
-    fn undo_ban(&mut self, index: usize, _pattern: usize) -> Result<(), ChangeTrackerError>{
+    fn undo_ban(&mut self, index: usize, _pattern: usize) -> Result<(), TraitError>{
         let g = self.last_changed_generation[index];
         if g != self.generation {
             self.last_changed_generation[index] = self.generation;
@@ -111,19 +111,19 @@ impl<T: Topology + Clone> Tracker<T> for ChangeTracker<T> {
         Ok(())
     }
 
-    fn as_pattern_picker(&self) -> Option<&dyn PatternPicker<T, Error=ChangeTrackerError>> {
+    fn as_pattern_picker(&self) -> Option<&dyn PatternPicker<T>> {
         None
     }
 
-    fn as_pattern_picker_mut(&mut self) -> Option<&mut dyn PatternPicker<T, Error=ChangeTrackerError>> {
+    fn as_pattern_picker_mut(&mut self) -> Option<&mut dyn PatternPicker<T>> {
         None
     }
 
-    fn as_index_picker(&self) -> Option<&dyn IndexPicker<T, Error=ChangeTrackerError>> {
+    fn as_index_picker(&self) -> Option<&dyn IndexPicker<T>> {
         None
     }
 
-    fn as_index_picker_mut(&mut self) -> Option<&mut dyn IndexPicker<T, Error=ChangeTrackerError>> {
+    fn as_index_picker_mut(&mut self) -> Option<&mut dyn IndexPicker<T>> {
         None
     }
 }

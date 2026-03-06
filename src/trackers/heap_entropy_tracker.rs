@@ -9,6 +9,7 @@ use crate::trackers::change_tracker::{ChangeTracker, ChangeTrackerError};
 use crate::trackers::index_picker::IndexPicker;
 use crate::trackers::pattern_picker::PatternPicker;
 use crate::trackers::tracker::{Tracker};
+use crate::trait_error::TraitError;
 use crate::wfc::wave_propagator::WavePropagatorState;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -36,7 +37,7 @@ pub struct HeapEntropyTracker<T: Topology + Clone> {
 }
 
 impl<T: Topology + Clone + 'static> HeapEntropyTracker<T> {
-    pub fn new() -> Box<dyn Tracker<T, Error = HeapEntropyTrackerError>> {
+    pub fn new() -> Box<dyn Tracker<T>> {
         let me = Self::new_empty();
         Box::new(me)
     }
@@ -60,7 +61,7 @@ impl<T: Topology + Clone + 'static> HeapEntropyTracker<T> {
         &mut self,
         wave_propagator_state: &WavePropagatorState<T>,
         mask: Option<Vec<bool>>,
-    ) -> Result<(), HeapEntropyTrackerError> {
+    ) -> Result<(), TraitError> {
         self.frequencies = wave_propagator_state.get_frequencies();
         self.pattern_count = self.frequencies.len();
         self.mask = mask;
@@ -88,9 +89,7 @@ impl<T: Topology + Clone + 'static> HeapEntropyTracker<T> {
 }
 
 impl<T: Topology + Clone + 'static> Tracker<T> for HeapEntropyTracker<T> {
-    type Error = HeapEntropyTrackerError;
-
-    fn reset(&mut self) -> Result<(), HeapEntropyTrackerError> {
+    fn reset(&mut self) -> Result<(), TraitError> {
         // Assumes Reset is called on a truly new Wave.
         let mut initial = EntropyValues::new();
         initial.plogp_sum = 0.0;
@@ -134,7 +133,7 @@ impl<T: Topology + Clone + 'static> Tracker<T> for HeapEntropyTracker<T> {
         Ok(())
     }
 
-    fn do_ban(&mut self, index: usize, pattern: usize) -> Result<(), HeapEntropyTrackerError> {
+    fn do_ban(&mut self, index: usize, pattern: usize) -> Result<(), TraitError> {
         self.entropy_values[index].borrow_mut().decrement(
             self.frequencies[pattern],
             self.plogp[pattern],
@@ -148,7 +147,7 @@ impl<T: Topology + Clone + 'static> Tracker<T> for HeapEntropyTracker<T> {
         Ok(())
     }
 
-    fn undo_ban(&mut self, index: usize, pattern: usize) -> Result<(), HeapEntropyTrackerError> {
+    fn undo_ban(&mut self, index: usize, pattern: usize) -> Result<(), TraitError> {
         self.entropy_values[index].borrow_mut().increment(
             self.frequencies[pattern],
             self.plogp[pattern],
@@ -162,27 +161,25 @@ impl<T: Topology + Clone + 'static> Tracker<T> for HeapEntropyTracker<T> {
         Ok(())
     }
 
-    fn as_pattern_picker(&self) -> Option<&dyn PatternPicker<T, Error = HeapEntropyTrackerError>> {
+    fn as_pattern_picker(&self) -> Option<&dyn PatternPicker<T>> {
         None
     }
 
-    fn as_pattern_picker_mut(&mut self) -> Option<&mut dyn PatternPicker<T, Error = HeapEntropyTrackerError>> {
+    fn as_pattern_picker_mut(&mut self) -> Option<&mut dyn PatternPicker<T>> {
         None
     }
 
-    fn as_index_picker(&self) -> Option<&dyn IndexPicker<T, Error = HeapEntropyTrackerError>> {
+    fn as_index_picker(&self) -> Option<&dyn IndexPicker<T>> {
         Some(self)
     }
 
-    fn as_index_picker_mut(&mut self) -> Option<&mut dyn IndexPicker<T, Error = HeapEntropyTrackerError>> {
+    fn as_index_picker_mut(&mut self) -> Option<&mut dyn IndexPicker<T>> {
         Some(self)
     }
 }
 
 impl<T: Topology + Clone + 'static> IndexPicker<T> for HeapEntropyTracker<T> {
-    type Error = HeapEntropyTrackerError;
-
-    fn init(&mut self, wave_propagator_state: &WavePropagatorState<T>, topology: &T) -> Result<(), HeapEntropyTrackerError> {
+    fn init(&mut self, wave_propagator_state: &WavePropagatorState<T>, topology: &T) -> Result<(), TraitError> {
         self.init_debug(
             wave_propagator_state,
             topology.mask(),
@@ -262,19 +259,19 @@ impl<T: Topology + Clone + 'static> IndexPicker<T> for HeapEntropyTracker<T> {
         Some(item.index.clone() as i32)
     }
 
-    fn as_tracker(&self) -> Option<&dyn Tracker<T, Error = HeapEntropyTrackerError>> {
+    fn as_tracker(&self) -> Option<&dyn Tracker<T>> {
         Some(self)
     }
 
-    fn as_tracker_mut(&mut self) -> Option<&mut dyn Tracker<T, Error = HeapEntropyTrackerError>> {
+    fn as_tracker_mut(&mut self) -> Option<&mut dyn Tracker<T>> {
         Some(self)
     }
 
-    fn as_pattern_picker(&self) -> Option<&dyn PatternPicker<T, Error = HeapEntropyTrackerError>> {
+    fn as_pattern_picker(&self) -> Option<&dyn PatternPicker<T>> {
         None
     }
 
-    fn as_pattern_picker_mut(&mut self) -> Option<&mut dyn PatternPicker<T, Error = HeapEntropyTrackerError>> {
+    fn as_pattern_picker_mut(&mut self) -> Option<&mut dyn PatternPicker<T>> {
         None
     }
 
@@ -294,7 +291,7 @@ impl<T: Topology + Clone + 'static> Default for HeapEntropyTracker<T> {
 }
 
 impl<T: Topology + Clone + 'static> HeapEntropyTracker<T> {
-    pub fn as_index_picker(het: Rc<RefCell<Self>>) -> Rc<RefCell<dyn IndexPicker<T, Error = HeapEntropyTrackerError>>> {
+    pub fn as_index_picker(het: Rc<RefCell<Self>>) -> Rc<RefCell<dyn IndexPicker<T>>> {
         het
     }
 }
