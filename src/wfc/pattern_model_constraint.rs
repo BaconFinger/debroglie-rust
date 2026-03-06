@@ -1,7 +1,6 @@
 use crate::topology::topology::Topology;
 use crate::trait_error::TraitError;
 use crate::wfc::wave_propagator::{WavePropagator, WavePropagatorState};
-use std::error::Error;
 
 pub trait PatternModelConstraint<T: Topology + Clone> {
     fn do_ban(&mut self, index: usize, pattern: i32) -> Result<(), TraitError>;

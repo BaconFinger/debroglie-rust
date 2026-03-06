@@ -1,4 +1,3 @@
-use crate::models::tile_model_mapping::TileModelMapping;
 use crate::topology::topology::Topology;
 use crate::trackers::index_picker::IndexPicker;
 use crate::trackers::pattern_picker::PatternPicker;

@@ -1,7 +1,7 @@
-use crate::heap::{Heap, HeapNode};
+use crate::heap::HeapNode;
 use crate::models::tile_model_mapping::TileModelMapping;
 use crate::shared_mut_heap::SharedMutHeap;
-use crate::topology::topology::{Topology, TopologyError};
+use crate::topology::topology::Topology;
 use crate::trackers::change_tracker::{ChangeTracker, ChangeTrackerError};
 use crate::trackers::index_picker::IndexPicker;
 use crate::trackers::pattern_picker::PatternPicker;

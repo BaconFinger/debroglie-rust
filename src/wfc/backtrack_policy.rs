@@ -2,7 +2,6 @@ use crate::topology::topology::Topology;
 use crate::trackers::tracker::ChoiceObserver;
 use crate::trait_error::TraitError;
 use crate::wfc::wave_propagator::WavePropagator;
-use std::error::Error;
 use std::marker::PhantomData;
 
 pub trait BacktrackPolicy<T: Topology + Clone> {

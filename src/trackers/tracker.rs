@@ -2,7 +2,6 @@ use crate::topology::topology::Topology;
 use crate::trackers::index_picker::IndexPicker;
 use crate::trackers::pattern_picker::PatternPicker;
 use crate::trait_error::TraitError;
-use std::error::Error;
 
 /// Callback for when choices/backtracks occur on WavePropagator
 /// TODO: Move this trait elsewhere?

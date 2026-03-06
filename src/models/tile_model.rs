@@ -2,7 +2,6 @@ use crate::models::tile_model_mapping::TileModelMapping;
 use crate::tile::Tile;
 use crate::topology::topology::Topology;
 use crate::trait_error::TraitError;
-use std::error::Error;
 
 /// Base trait for the models used in generation.
 ///

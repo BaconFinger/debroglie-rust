@@ -4,7 +4,6 @@ use crate::trackers::pattern_picker::PatternPicker;
 use crate::trackers::tracker::Tracker;
 use crate::trait_error::TraitError;
 use crate::wfc::wave_propagator::WavePropagatorState;
-use std::error::Error;
 
 pub trait IndexPicker<T: Topology + Clone> {
     fn init(

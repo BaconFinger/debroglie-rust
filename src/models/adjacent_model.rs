@@ -8,7 +8,6 @@ use crate::topology::topology::{Topology, TopologyError};
 use crate::trait_error::TraitError;
 use crate::wfc::pattern_model::PatternModel;
 use std::collections::{HashMap, HashSet};
-use std::fmt::Formatter;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum AdjacentModelError {
