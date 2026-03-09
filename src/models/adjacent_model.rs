@@ -1,14 +1,46 @@
 use crate::models::tile_model::TileModel;
-use crate::topology::direction::{
-    Direction, DirectionSet, DirectionSetType,
-};
-use crate::topology::grid_topology::GridTopology;
-use crate::topology::topo_array::{DefaultTopoArray, TopoArray};
-use crate::topology::topology::Topology;
-use std::collections::{HashMap, HashSet};
 use crate::models::tile_model_mapping::TileModelMapping;
 use crate::tile::{Tile, TileId};
+use crate::topology::direction::{Direction, DirectionSet, DirectionSetType};
+use crate::topology::grid_topology::{GridTopology, GridTopologyError};
+use crate::topology::topo_array::{DefaultTopoArray, TopoArray};
+use crate::topology::topology::{Topology, TopologyError};
+use crate::trait_error::TraitError;
 use crate::wfc::pattern_model::PatternModel;
+use std::collections::{HashMap, HashSet};
+
+#[derive(Debug, thiserror::Error)]
+pub enum AdjacentModelError {
+    #[error("Directions must be set before calling this method")]
+    DirectionsNotSet,
+
+    #[error("Failed to get topology")]
+    NoTopology,
+
+    #[error("Failed to get tile at ({x}, {y}, {z})")]
+    GetAtCoordFailed { x: usize, y: usize, z: usize },
+
+    #[error("Failed to get direction from index {index}")]
+    GetDirectionFromIndexFailed { index: usize },
+
+    #[error("Failed to get adjacent tile at ({x}, {y}, {z})")]
+    GetAdjacentTileFailed { x: usize, y: usize, z: usize },
+
+    #[error("Sample is incompatible because {reason}")]
+    IncompatibleSample { reason: String },
+
+    #[error("No tiles have assigned frequencies")]
+    NoFrequencies,
+
+    #[error("Cannot set directions to {target} because it has already been set to {current}")]
+    IncompatibleDirections { target: String, current: String },
+
+    // Error wrappers
+    #[error(transparent)]
+    Topology(#[from] TopologyError),
+    #[error(transparent)]
+    GridTopology(#[from] GridTopologyError),
+}
 
 /// AdjacentModel constrains which tiles can be placed adjacent to which other ones.
 /// It does so by maintaining for each tile, a list of tiles that can be placed next to it in each direction.
@@ -28,7 +60,7 @@ pub struct AdjacentModel {
     /// Don't quite know what this does yet
     propagator: Vec<Vec<HashSet<usize>>>,
 
-    sample: Box<dyn TopoArray<Tile, GridTopology>>
+    sample: Box<dyn TopoArray<Tile, GridTopology>>,
 }
 
 impl AdjacentModel {
@@ -46,16 +78,15 @@ impl AdjacentModel {
     /// Sets the directions of the Adjacent model, if it has not been set at construction.
     /// This specifies how many neighbours each tile has.
     /// Once set, it cannot be changed.
-    pub fn set_directions(&mut self, directions: DirectionSet) -> Result<(), String> {
+    pub fn set_directions(&mut self, directions: DirectionSet) -> Result<(), AdjacentModelError> {
         if let Some(ref current_directions) = self.directions {
             if current_directions.direction_type() != DirectionSetType::Unknown
                 && current_directions.direction_type() != directions.direction_type()
             {
-                return Err(format!(
-                    "Cannot set directions to {:?}, it has already been set to {:?}",
-                    directions.direction_type(),
-                    current_directions.direction_type()
-                ));
+                return Err(AdjacentModelError::IncompatibleDirections {
+                    target: format!("{:?}", directions.direction_type()),
+                    current: format!("{:?}", current_directions.direction_type()),
+                });
             }
         }
 
@@ -63,16 +94,16 @@ impl AdjacentModel {
         Ok(())
     }
 
-    fn require_directions(&self) -> Result<&DirectionSet, String> {
+    fn require_directions(&self) -> Result<&DirectionSet, AdjacentModelError> {
         match &self.directions {
             Some(directions) => {
                 if directions.direction_type() == DirectionSetType::Unknown {
-                    Err("Directions must be set before calling this method".to_string())
+                    Err(AdjacentModelError::DirectionsNotSet)
                 } else {
                     Ok(directions)
                 }
             }
-            None => Err("Directions must be set before calling this method".to_string()),
+            None => Err(AdjacentModelError::DirectionsNotSet),
         }
     }
 
@@ -80,9 +111,9 @@ impl AdjacentModel {
     pub fn add_sample_simple<T: Topology>(
         &mut self,
         sample: &dyn TopoArray<Tile, GridTopology>,
-    ) -> Result<(), String> {
+    ) -> Result<(), AdjacentModelError> {
         let (width, height, depth, direction_count) = {
-            let topology = sample.topology().ok_or("Failed to get topology")?;
+            let topology = sample.topology().ok_or(AdjacentModelError::NoTopology)?;
             self.set_directions(topology.directions().clone())?;
 
             let width = topology.width();
@@ -95,18 +126,23 @@ impl AdjacentModel {
         for z in 0..depth {
             for y in 0..height {
                 for x in 0..width {
-                    let index = sample.topology().ok_or("Failed to get topology")?
-                        .get_index(x, y, z)
-                        .map_err(|e| format!("Invalid coordinates ({}, {}, {}): {}", x, y, z, e))?;
+                    let index = sample
+                        .topology()
+                        .ok_or(AdjacentModelError::NoTopology)?
+                        .get_index(x, y, z)?;
 
-                    if !sample.topology().ok_or("Failed to get topology")?.contains_index(index) {
+                    if !sample
+                        .topology()
+                        .ok_or(AdjacentModelError::NoTopology)?
+                        .contains_index(index)
+                    {
                         continue;
                     }
 
                     // Need the tile to get the pattern.
                     let tile = sample.get_id_from_coord(x, y, z);
                     if tile.is_none() {
-                        return Err(format!("Failed to get tile at ({}, {}, {})", x, y, z))
+                        return Err(AdjacentModelError::GetAtCoordFailed { x, y, z });
                     }
                     let tile = TileId(tile.unwrap());
 
@@ -121,20 +157,19 @@ impl AdjacentModel {
                     let mut adjacent_tiles = Vec::new();
                     for d in 0..direction_count {
                         let direction = Direction::from_index(d)
-                            .ok_or(format!("unable to get direction from index {}", d))?;
-                        let result = sample.topology().ok_or("Failed to get topology")?.try_move_coord_to_coord(
-                            x,
-                            y,
-                            z,
-                            direction,
-                        );
-                        if result.is_err() {
-                            return Err(result.unwrap_err().to_string());
-                        }
-                        if let Some((x2, y2, z2)) = result.unwrap() {
-                            let tile2 = sample
-                                .get_id_from_coord(x2, y2, z2)
-                                .ok_or("Failed to get adjacent tile".to_string())?;
+                            .ok_or(AdjacentModelError::GetDirectionFromIndexFailed { index: d })?;
+                        let result = sample
+                            .topology()
+                            .ok_or(AdjacentModelError::NoTopology)?
+                            .try_move_coord_to_coord(x, y, z, direction)?;
+                        if let Some((x2, y2, z2)) = result {
+                            let tile2 = sample.get_id_from_coord(x2, y2, z2).ok_or(
+                                AdjacentModelError::GetAdjacentTileFailed {
+                                    x: x2,
+                                    y: y2,
+                                    z: z2,
+                                },
+                            )?;
                             adjacent_tiles.push((d, TileId(tile2)));
                         }
                     }
@@ -154,12 +189,16 @@ impl AdjacentModel {
             }
         }
 
-        self.sample = sample.clone_box().ok_or("Sample is incompatible as it cannot be cloned into a Box")?;
+        self.sample = sample
+            .clone_box()
+            .ok_or(AdjacentModelError::IncompatibleSample {
+                reason: "Cannot be cloned to Box".to_string(),
+            })?;
 
         Ok(())
     }
 
-    fn get_pattern(&mut self, tile: TileId, sample: &dyn TopoArray<Tile, GridTopology>,) -> usize {
+    fn get_pattern(&mut self, tile: TileId, sample: &dyn TopoArray<Tile, GridTopology>) -> usize {
         let direction_count = self.directions.as_ref().map(|d| d.count()).unwrap_or(4); // Default fallback
 
         let matching_tile = self.in_tiles_to_patterns(tile, sample);
@@ -181,7 +220,11 @@ impl AdjacentModel {
     /// In the C# package a Tile could be used as a Key in a HashMap, and it would compare by the
     /// value of the tile (e.g., 2 different tiles with the contents of '_' would be treated as the same
     /// Key). So this function replicates this behavior by comparing the value of the tiles.
-    fn in_tiles_to_patterns(&self, tile: TileId, sample: &dyn TopoArray<Tile, GridTopology>,) -> Option<TileId> {
+    fn in_tiles_to_patterns(
+        &self,
+        tile: TileId,
+        sample: &dyn TopoArray<Tile, GridTopology>,
+    ) -> Option<TileId> {
         let new_tile = sample.get_value_from_index(tile.0)?;
         let matching_tile = {
             let mut result = None;
@@ -463,17 +506,21 @@ impl AdjacentModel {
 }
 
 impl TileModel<GridTopology> for AdjacentModel {
-    fn get_tile_model_mapping(&mut self, grid_topology: &GridTopology) -> Result<TileModelMapping<GridTopology>, String> {
+    fn get_tile_model_mapping(
+        &mut self,
+        grid_topology: &GridTopology,
+    ) -> Result<TileModelMapping<GridTopology>, TraitError> {
         self.require_directions()?;
         self.set_directions(grid_topology.directions().clone())?;
 
         let total_frequency: f64 = self.frequencies.iter().sum();
         if total_frequency == 0.0 {
-            return Err("No tiles have assigned frequencies.".to_string());
+            return Err(Box::new(AdjacentModelError::NoFrequencies));
         }
 
         // Convert propagator to the required format
-        let propagator_converted: Vec<Vec<Vec<usize>>> = self.propagator
+        let propagator_converted: Vec<Vec<Vec<usize>>> = self
+            .propagator
             .iter()
             .map(|pattern_propagator| {
                 pattern_propagator
@@ -483,10 +530,7 @@ impl TileModel<GridTopology> for AdjacentModel {
             })
             .collect();
 
-        let pattern_model = PatternModel::new(
-            propagator_converted,
-            self.frequencies.clone()
-        );
+        let pattern_model = PatternModel::new(propagator_converted, self.frequencies.clone());
 
         // Build mappings
         let mut tiles_to_patterns_by_offset = HashMap::new();
@@ -499,7 +543,8 @@ impl TileModel<GridTopology> for AdjacentModel {
         tiles_to_patterns_by_offset.insert(0, offset_map);
 
         let mut patterns_to_tiles_by_offset = HashMap::new();
-        let patterns_to_tiles: HashMap<usize, TileId> = self.tiles_to_patterns
+        let patterns_to_tiles: HashMap<usize, TileId> = self
+            .tiles_to_patterns
             .iter()
             .map(|(tile, &pattern)| (pattern, tile.clone()))
             .collect();
@@ -582,11 +627,11 @@ impl AdjacentModel {
 
 mod tests {
     #![allow(dead_code, unused_imports)]
-    
-    use crate::topology::ragged_topology_array_2d::RaggedTopoArray2D;
+
+    use super::*;
     use crate::tile::ToTile;
     use crate::topology::direction::DirectionSetType::Cartesian2d;
-    use super::*;
+    use crate::topology::ragged_topology_array_2d::RaggedTopoArray2D;
 
     #[test]
     fn test_larger_sample() {
@@ -598,12 +643,7 @@ mod tests {
         ];
         let initial_vec = initial_data
             .into_iter()
-            .map(|x| x
-                .clone()
-                .iter()
-                .map(|y| y.to_tile())
-                .collect::<Vec<Tile>>()
-            )
+            .map(|x| x.clone().iter().map(|y| y.to_tile()).collect::<Vec<Tile>>())
             .collect::<Vec<Vec<Tile>>>();
         let sample = RaggedTopoArray2D::new(initial_vec, false);
         let mut model = AdjacentModel::new();
@@ -678,22 +718,14 @@ mod tests {
     fn to_tiles(initial_data: &Vec<Vec<char>>) -> Vec<Vec<Tile>> {
         initial_data
             .into_iter()
-            .map(|x| x
-                .clone()
-                .iter()
-                .map(|y| y.to_tile())
-                .collect::<Vec<Tile>>()
-            )
+            .map(|x| x.clone().iter().map(|y| y.to_tile()).collect::<Vec<Tile>>())
             .collect::<Vec<Vec<Tile>>>()
     }
 
     #[test]
     fn test_frequencies() {
         // Arrange
-        let initial_data = vec![
-            vec!['_', '+'],
-            vec!['_', '*'],
-        ];
+        let initial_data = vec![vec!['_', '+'], vec!['_', '*']];
         let initial_vec = to_tiles(&initial_data);
         let sample = RaggedTopoArray2D::new(initial_vec, false);
         let mut model = AdjacentModel::new();
@@ -711,10 +743,7 @@ mod tests {
     #[test]
     fn test_tiles_to_patterns() {
         // Arrange
-        let initial_data = vec![
-            vec!['_', '+'],
-            vec!['_', '*'],
-        ];
+        let initial_data = vec![vec!['_', '+'], vec!['_', '*']];
         let initial_vec = to_tiles(&initial_data);
         let sample = RaggedTopoArray2D::new(initial_vec, false);
         let mut model = AdjacentModel::new();

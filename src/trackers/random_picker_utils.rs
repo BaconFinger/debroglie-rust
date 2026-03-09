@@ -1,6 +1,6 @@
-use std::rc::Rc;
-use crate::wfc::wave::Wave;
 use crate::topology::topology::Topology;
+use crate::wfc::wave::Wave;
+use std::rc::Rc;
 
 pub struct RandomPickerUtils;
 
@@ -10,8 +10,7 @@ impl RandomPickerUtils {
         random_double: Rc<dyn Fn() -> f64>,
         index: usize,
         frequencies: &[f64],
-    ) -> Option<usize>
-    {
+    ) -> Option<usize> {
         let pattern_count = frequencies.len();
         let mut s = 0.0; // The total frequency of all existing patterns
 
@@ -42,8 +41,7 @@ impl RandomPickerUtils {
         index: usize,
         frequencies: &[f64],
         patterns: Option<&[usize]>,
-    ) -> Option<usize>
-    {
+    ) -> Option<usize> {
         if patterns.is_none() {
             return Self::get_random_possible_pattern::<T>(wave, random_double, index, frequencies);
         }

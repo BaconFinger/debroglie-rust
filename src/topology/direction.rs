@@ -1,4 +1,3 @@
-use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Axis {
@@ -50,7 +49,7 @@ impl Direction {
     /// Get the W direction equivalent (WPlus = ZPlus, WMinus = ZMinus)
     pub fn as_w_direction(self) -> Option<Self> {
         match self {
-            Direction::ZPlus => Some(Direction::ZPlus),  // This represents WPlus
+            Direction::ZPlus => Some(Direction::ZPlus), // This represents WPlus
             Direction::ZMinus => Some(Direction::ZMinus), // This represents WMinus
             _ => None,
         }
@@ -100,22 +99,11 @@ impl From<Direction> for EdgeLabel {
 }
 
 /// Error type for direction operations
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum DirectionError {
+    #[error("No direction corresponds to ({x}, {y}, {z})")]
     NoDirectionFound { x: i32, y: i32, z: i32 },
 }
-
-impl fmt::Display for DirectionError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            DirectionError::NoDirectionFound { x, y, z } => {
-                write!(f, "No direction corresponds to ({}, {}, {})", x, y, z)
-            }
-        }
-    }
-}
-
-impl std::error::Error for DirectionError {}
 
 /// Wrapper around DirectionSetType supplying some convenience data.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -230,9 +218,17 @@ impl DirectionSet {
                 // Handle the special case for hexagonal 3D where indices 6 and 7
                 // represent WPlus and WMinus but map to ZPlus and ZMinus enum values
                 if self.direction_type == DirectionSetType::Hexagonal3d && d >= 6 {
-                    return Ok(if d == 6 { Direction::ZPlus } else { Direction::ZMinus });
+                    return Ok(if d == 6 {
+                        Direction::ZPlus
+                    } else {
+                        Direction::ZMinus
+                    });
                 }
-                return Direction::from_index(d).ok_or(DirectionError::NoDirectionFound { x, y, z });
+                return Direction::from_index(d).ok_or(DirectionError::NoDirectionFound {
+                    x,
+                    y,
+                    z,
+                });
             }
         }
         Err(DirectionError::NoDirectionFound { x, y, z })
@@ -249,7 +245,10 @@ impl DirectionSet {
         if index < self.count {
             (self.dx[index], self.dy[index], self.dz[index])
         } else {
-            panic!("Direction index {} out of bounds for DirectionSet with {} directions", index, self.count);
+            panic!(
+                "Direction index {} out of bounds for DirectionSet with {} directions",
+                index, self.count
+            );
         }
     }
 
@@ -291,7 +290,7 @@ impl DirectionSet {
         } else if self.direction_type == DirectionSetType::Hexagonal3d && index < self.count {
             // Indices 6 and 7 in hexagonal 3D represent WPlus and WMinus
             if index == 6 {
-                Some(Direction::ZPlus)  // Represents WPlus
+                Some(Direction::ZPlus) // Represents WPlus
             } else {
                 Some(Direction::ZMinus) // Represents WMinus
             }
@@ -491,7 +490,7 @@ mod tests {
         assert_eq!(directions[4], Direction::ZPlus);
         assert_eq!(directions[5], Direction::ZMinus);
         // Last 2 represent W directions but use Z enum values
-        assert_eq!(directions[6], Direction::ZPlus);  // WPlus
+        assert_eq!(directions[6], Direction::ZPlus); // WPlus
         assert_eq!(directions[7], Direction::ZMinus); // WMinus
     }
 
@@ -529,7 +528,7 @@ mod tests {
         assert!(ds.is_valid_direction(Direction::XMinus));
         assert!(ds.is_valid_direction(Direction::YPlus));
         assert!(ds.is_valid_direction(Direction::YMinus));
-        assert!(ds.is_valid_direction(Direction::ZPlus));  // Also represents WPlus
+        assert!(ds.is_valid_direction(Direction::ZPlus)); // Also represents WPlus
         assert!(ds.is_valid_direction(Direction::ZMinus)); // Also represents WMinus
     }
 

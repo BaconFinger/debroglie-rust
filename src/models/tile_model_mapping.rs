@@ -1,11 +1,11 @@
-use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, LazyLock, Mutex};
 use crate::point::Point;
 use crate::tile::{Tile, TileId};
 use crate::tile_propagator_tile_set::TilePropagatorTileSet;
 use crate::topology::topo_array::TopoArray;
 use crate::topology::topology::Topology;
 use crate::wfc::pattern_model::PatternModel;
+use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, LazyLock, Mutex};
 
 static EMPTY_PATTERN_SET: LazyLock<HashSet<usize>> = LazyLock::new(|| HashSet::new());
 
@@ -15,13 +15,18 @@ pub struct TileModelMapping<TopologyT: Topology> {
     pub patterns_to_tiles_by_offset: HashMap<i32, HashMap<usize, TileId>>,
 
     // None for 1:1 mappings
-    pub tile_coord_to_pattern_coord_index_and_offset: Option<Box<dyn TopoArray<(Point<i32>, usize, i32), TopologyT>>>,
+    pub tile_coord_to_pattern_coord_index_and_offset:
+        Option<Box<dyn TopoArray<(Point<i32>, usize, i32), TopologyT>>>,
 
     // None for 1:1 mappings
-    pub pattern_coord_to_tile_coord_index_and_offset: Option<Box<dyn TopoArray<Vec<(Point<i32>, usize, i32)>, TopologyT>>>,
+    pub pattern_coord_to_tile_coord_index_and_offset:
+        Option<Box<dyn TopoArray<Vec<(Point<i32>, usize, i32)>, TopologyT>>>,
 }
 
-impl<TopologyT> TileModelMapping<TopologyT> where TopologyT: Topology + Clone {
+impl<TopologyT> TileModelMapping<TopologyT>
+where
+    TopologyT: Topology + Clone,
+{
     pub fn new(
         pattern_model: PatternModel,
         tiles_to_patterns_by_offset: HashMap<i32, HashMap<TileId, HashSet<usize>>>,
@@ -38,7 +43,10 @@ impl<TopologyT> TileModelMapping<TopologyT> where TopologyT: Topology + Clone {
 
     pub fn get_tile_coord_to_pattern_coord(&self, x: i32, y: i32, z: i32) -> (i32, i32, i32, i32) {
         if let Some(ref mapping) = self.tile_coord_to_pattern_coord_index_and_offset {
-            if let Ok((point, _index, offset)) = mapping.as_ref().get_coord(x as usize, y as usize, z as usize) {
+            if let Ok((point, _index, offset)) = mapping
+                .as_ref()
+                .get_coord(x as usize, y as usize, z as usize)
+            {
                 (point.x, point.y, point.z, *offset)
             } else {
                 (x, y, z, 0) // fallback on error
@@ -83,7 +91,10 @@ impl<TopologyT> TileModelMapping<TopologyT> where TopologyT: Topology + Clone {
         // tile_set
     }
 
-    fn get_patterns_for_tile<'a>(tiles_to_patterns: &'a HashMap<TileId, HashSet<usize>>, tile: TileId) -> &'a HashSet<usize> {
+    fn get_patterns_for_tile<'a>(
+        tiles_to_patterns: &'a HashMap<TileId, HashSet<usize>>,
+        tile: TileId,
+    ) -> &'a HashSet<usize> {
         tiles_to_patterns.get(&tile).unwrap_or(&EMPTY_PATTERN_SET)
     }
 
@@ -97,7 +108,11 @@ impl<TopologyT> TileModelMapping<TopologyT> where TopologyT: Topology + Clone {
     }
 
     /// Gets the patterns associated with a set of tiles at a given offset.
-    pub fn get_patterns_from_tile_set(&self, tile_set: Arc<Mutex<TilePropagatorTileSet>>, offset: i32) -> HashSet<usize> {
+    pub fn get_patterns_from_tile_set(
+        &self,
+        tile_set: Arc<Mutex<TilePropagatorTileSet>>,
+        offset: i32,
+    ) -> HashSet<usize> {
         todo!("get_patterns_from_tile_set");
         // if let Some(patterns) = tile_set.lock().unwrap().offset_to_patterns().get(&offset) {
         //     return patterns.iter().map(|&x| x as usize).collect();
@@ -120,7 +135,11 @@ impl<TopologyT> TileModelMapping<TopologyT> where TopologyT: Topology + Clone {
     /// In the C# package a Tile could be used as a Key in a HashMap, and it would compare by the
     /// value of the tile (e.g., 2 different tiles with the contents of '_' would be treated as the same
     /// Key). So this function replicates this behavior by comparing the value of the tiles.
-    fn in_tiles_to_patterns(&self, tile: TileId, hash: &HashMap<TileId, HashSet<usize>>) -> Option<TileId> {
+    fn in_tiles_to_patterns(
+        &self,
+        tile: TileId,
+        hash: &HashMap<TileId, HashSet<usize>>,
+    ) -> Option<TileId> {
         panic!("in_tiles_to_patterns not implemented, should it be?");
         // let new_tile = ctx.tiles().get(tile)?.clone();
         // let matching_tile = {

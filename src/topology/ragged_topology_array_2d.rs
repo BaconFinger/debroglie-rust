@@ -2,6 +2,12 @@ use crate::topology::grid_topology::GridTopology;
 use crate::topology::topo_array::{TopoArray, TopoArray2D};
 use crate::topology::topology::{Topology, TopologyError};
 
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum RaggedTopoArray2DError {
+    #[error("Unable to get value for coordinate ({x}, {y})")]
+    CannotGetValueForCoordinate { x: usize, y: usize}
+}
+
 /// A 2D array with potentially different row lengths, coupled with a topology
 #[derive(Debug, Clone)]
 pub struct RaggedTopoArray2D<T> {
@@ -22,12 +28,19 @@ impl<T: Clone> RaggedTopoArray2D<T> {
         let topology = GridTopology::new_2d(width, height, periodic);
         let (flattened_values, mapped) = flatten_and_map_values(&values);
 
-        Self { values: mapped, topology, flattened_values, original_values: values }
+        Self {
+            values: mapped,
+            topology,
+            flattened_values,
+            original_values: values,
+        }
     }
 
     /// Create a new RaggedTopoArray2D from a jagged array and explicit topology
-    pub fn with_topology(values: Vec<Vec<T>>, topology: GridTopology) -> RaggedTopoArray2DGeneric<T, GridTopology>
-    {
+    pub fn with_topology(
+        values: Vec<Vec<T>>,
+        topology: GridTopology,
+    ) -> RaggedTopoArray2DGeneric<T, GridTopology> {
         RaggedTopoArray2DGeneric::new(values, topology)
     }
 
@@ -80,14 +93,17 @@ impl<T: Clone + 'static> TopoArray<T, GridTopology> for RaggedTopoArray2D<T> {
             return Err(TopologyError::CoordinateOutOfBounds { x, y, z: 0 });
         }
 
-        let index = self.values[y].get(x).ok_or(TopologyError::CoordinateOutOfBounds { x, y, z: 0 })?;
-        self.get_value_from_index(index.clone()).ok_or(TopologyError::Other(format!("Unable to get value for coordinate ({}, {})", x, y)))
+        let index = self.values[y]
+            .get(x)
+            .ok_or(TopologyError::CoordinateOutOfBounds { x, y, z: 0 })?;
+        self.get_value_from_index(index.clone())
+            .ok_or(TopologyError::TraitError(RaggedTopoArray2DError::CannotGetValueForCoordinate { x, y }.into()))
     }
 
     fn get_index(&self, index: usize) -> Result<&T, TopologyError> {
         let result = self.topology.get_coord(index);
         if result.is_err() {
-            return Err(TopologyError::Other(format!("GridTopologyError: {}", result.unwrap_err().to_string())));
+            return Err(TopologyError::TraitError(result.unwrap_err().into()));
         }
         let (x, y, z) = result.unwrap();
         self.get_coord(x, y, z)
@@ -149,7 +165,6 @@ impl<T> TopoArray2D<T, GridTopology> for RaggedTopoArray2D<T> {
     }
 }
 
-
 /// Generic version that works with any topology type
 #[derive(Debug, Clone)]
 pub struct RaggedTopoArray2DGeneric<T, TopologyT>
@@ -171,7 +186,12 @@ where
     pub fn new(values: Vec<Vec<T>>, topology: TopologyT) -> Self {
         let (flattened_values, mapped) = flatten_and_map_values(&values);
 
-        Self { values: mapped, topology, flattened_values, original_values: values }
+        Self {
+            values: mapped,
+            topology,
+            flattened_values,
+            original_values: values,
+        }
     }
 
     /// Get the width of the widest row
@@ -212,8 +232,11 @@ where
             return Err(TopologyError::CoordinateOutOfBounds { x, y, z: 0 });
         }
 
-        let index = self.values[y].get(x).ok_or(TopologyError::CoordinateOutOfBounds { x, y, z: 0 })?;
-        self.get_value_from_index(index.clone()).ok_or(TopologyError::Other(format!("Unable to get value for coordinate ({}, {})", x, y)))
+        let index = self.values[y]
+            .get(x)
+            .ok_or(TopologyError::CoordinateOutOfBounds { x, y, z: 0 })?;
+        self.get_value_from_index(index.clone())
+            .ok_or(TopologyError::TraitError(RaggedTopoArray2DError::CannotGetValueForCoordinate { x, y }.into()))
     }
 
     fn get_index(&self, index: usize) -> Result<&T, TopologyError> {

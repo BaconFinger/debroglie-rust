@@ -1,12 +1,12 @@
-use std::collections::HashMap;
-use std::fmt::Debug;
-use std::rc::Rc;
 use crate::constraints::tile_constraint::TileConstraint;
 use crate::tile::TileId;
 use crate::tile_propagator::DummyTopoArray;
 use crate::topology::topo_array::TopoArray;
 use crate::topology::topology::Topology;
 use crate::wfc::wave_propagator::ModelConstraintAlgorithm;
+use std::collections::HashMap;
+use std::fmt::Debug;
+use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub struct PriorityAndWeight {
@@ -21,8 +21,7 @@ impl PriorityAndWeight {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub enum IndexPickerType
-{
+pub enum IndexPickerType {
     /// Use the most appropriate picker, usually MinEntropy
     Default,
     /// Pick the first available index.
@@ -42,8 +41,7 @@ pub enum IndexPickerType
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub enum TilePickerType
-{
+pub enum TilePickerType {
     /// Use the most appropriate picker, usually Weighted
     Default,
     /// Pick the first available tile.
@@ -55,15 +53,13 @@ pub enum TilePickerType
 }
 
 #[derive(Debug, Clone)]
-pub enum BacktrackType
-{
+pub enum BacktrackType {
     None,
     Backtrack,
     Backjump,
 }
 
-pub struct TilePropagatorOptions<V, T: Topology + Clone>
-{
+pub struct TilePropagatorOptions<V, T: Topology + Clone> {
     pub backtrack: BacktrackType,
 
     /// Maximum number of steps to backtrack.
@@ -106,20 +102,27 @@ pub struct TilePropagatorOptions<V, T: Topology + Clone>
     pub memoize_indices: bool,
 }
 
-impl <V: Clone + 'static, T: Topology + Clone> Debug for TilePropagatorOptions<V, T> {
+impl<V: Clone + 'static, T: Topology + Clone> Debug for TilePropagatorOptions<V, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         todo!()
     }
 }
 
 impl<V: Clone + 'static, T: Topology + Clone + 'static> TilePropagatorOptions<V, T> {
-    pub fn new(backtrack: bool, random_double: Option<Rc<dyn Fn() -> f64>>, constraints: Option<Vec<Box<dyn TileConstraint<T>>>>,) -> Self {
+    pub fn new(
+        backtrack: bool,
+        random_double: Option<Rc<dyn Fn() -> f64>>,
+        constraints: Option<Vec<Box<dyn TileConstraint<T>>>>,
+    ) -> Self {
         Self {
-            backtrack: if backtrack { BacktrackType::Backtrack } else { BacktrackType::None },
+            backtrack: if backtrack {
+                BacktrackType::Backtrack
+            } else {
+                BacktrackType::None
+            },
             max_backtrack_depth: 0,
             constraints: constraints.unwrap_or(Vec::new()),
             random_double: random_double.unwrap_or(Rc::new(|| {
-
                 use std::hash::{Hash, Hasher};
                 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -147,8 +150,8 @@ impl<V: Clone + 'static, T: Topology + Clone + 'static> TilePropagatorOptions<V,
 mod tests {
     #![allow(dead_code, unused_imports)]
 
-    use crate::topology::grid_topology::GridTopology;
     use super::*;
+    use crate::topology::grid_topology::GridTopology;
 
     #[test]
     fn includes_default_random_func() {
@@ -157,12 +160,16 @@ mod tests {
         let mut last_random_double = 0.0;
 
         // Act
-        let options: TilePropagatorOptions<i32, GridTopology> = TilePropagatorOptions::new(true, None, None);
+        let options: TilePropagatorOptions<i32, GridTopology> =
+            TilePropagatorOptions::new(true, None, None);
 
         // Assert
         for i in 0..max_tries {
             if i >= max_tries - 1 {
-                assert_eq!(false, true, "random func output has been the same for the last 3 tries.");
+                assert_eq!(
+                    false, true,
+                    "random func output has been the same for the last 3 tries."
+                );
             }
             let output = options.random_double.clone()();
             if output != last_random_double {

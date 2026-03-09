@@ -1,6 +1,7 @@
 use crate::models::tile_model_mapping::TileModelMapping;
 use crate::tile::Tile;
 use crate::topology::topology::Topology;
+use crate::trait_error::TraitError;
 
 /// Base trait for the models used in generation.
 ///
@@ -10,7 +11,10 @@ use crate::topology::topology::Topology;
 /// arrangements of tiles).
 pub trait TileModel<TopologyT: Topology + Clone> {
     /// Extracts the actual model of patterns used.
-    fn get_tile_model_mapping(&mut self, topology: &TopologyT) -> Result<TileModelMapping<TopologyT>, String>;
+    fn get_tile_model_mapping(
+        &mut self,
+        topology: &TopologyT,
+    ) -> Result<TileModelMapping<TopologyT>, TraitError>;
     fn get_tile(&self, index: usize) -> Option<&Tile>;
 
     // fn get_tile_model_mapping(&mut self, ctx: &Context<TopologyT>, topology: TopologyId) -> Result<TileModelMapping<TopologyT>, String>;

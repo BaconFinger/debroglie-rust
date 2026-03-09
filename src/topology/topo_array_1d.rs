@@ -14,7 +14,9 @@ impl<T, TopologyT: Topology + Clone> TopoArray1D<T, TopologyT> {
     }
 }
 
-impl<T: Clone + 'static, TopologyT: Topology + Clone> TopoArray<T, TopologyT> for TopoArray1D<T, TopologyT> {
+impl<T: Clone + 'static, TopologyT: Topology + Clone> TopoArray<T, TopologyT>
+    for TopoArray1D<T, TopologyT>
+{
     /// Gets the topology associated with this array
     fn topology(&self) -> Option<&TopologyT> {
         Some(&self.topology)
@@ -22,10 +24,11 @@ impl<T: Clone + 'static, TopologyT: Topology + Clone> TopoArray<T, TopologyT> fo
 
     /// Gets the value at the specified index
     fn get_index(&self, index: usize) -> Result<&T, TopologyError> {
-        self.values.get(index)
+        self.values
+            .get(index)
             .ok_or(TopologyError::IndexOutOfBounds {
                 index,
-                max: self.values.len()
+                max: self.values.len(),
             })
     }
 

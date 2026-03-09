@@ -2,7 +2,7 @@
 /// Most importantly, it tracks possibilities - which patterns are possible to put
 /// into which cells.
 /// It has no notion of cell adjacency, cells are just referred to by integer index.
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct Wave {
     pattern_count: usize,
 

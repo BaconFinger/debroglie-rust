@@ -1,10 +1,11 @@
-use std::marker::PhantomData;
 use crate::topology::topology::Topology;
 use crate::trackers::tracker::ChoiceObserver;
+use crate::trait_error::TraitError;
 use crate::wfc::wave_propagator::WavePropagator;
+use std::marker::PhantomData;
 
 pub trait BacktrackPolicy<T: Topology + Clone> {
-    fn init(&mut self, wave_propagator: &mut WavePropagator<T>) -> Result<(), String>;
+    fn init(&mut self, wave_propagator: &mut WavePropagator<T>) -> Result<(), TraitError>;
 
     /// Returns:
     /// 0  = Give up
@@ -13,6 +14,9 @@ pub trait BacktrackPolicy<T: Topology + Clone> {
     fn get_backjump(&mut self) -> Option<i32>;
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum ConstraintBacktrackPolicyError {}
+
 pub struct ConstantBacktrackPolicy<T: Topology + Clone> {
     amount: i32,
     _phantom: PhantomData<T>,
@@ -20,12 +24,18 @@ pub struct ConstantBacktrackPolicy<T: Topology + Clone> {
 
 impl<T: Topology + Clone> ConstantBacktrackPolicy<T> {
     pub fn new(amount: i32) -> Self {
-        ConstantBacktrackPolicy { amount, _phantom: PhantomData }
+        ConstantBacktrackPolicy {
+            amount,
+            _phantom: PhantomData,
+        }
     }
 }
 
-impl<T> BacktrackPolicy<T> for ConstantBacktrackPolicy<T> where T: Topology + Clone {
-    fn init(&mut self, _wave_propagator: &mut WavePropagator<T>) -> Result<(), String> {
+impl<T> BacktrackPolicy<T> for ConstantBacktrackPolicy<T>
+where
+    T: Topology + Clone,
+{
+    fn init(&mut self, _wave_propagator: &mut WavePropagator<T>) -> Result<(), TraitError> {
         // Empty implementation
         Ok(())
     }
@@ -34,6 +44,9 @@ impl<T> BacktrackPolicy<T> for ConstantBacktrackPolicy<T> where T: Topology + Cl
         Some(self.amount)
     }
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum PatienceBacktrackPolicyError {}
 
 /// After 10 failed backtracks, backjumps by 4 (level 0) and repeats.
 /// Each subsequent level backtracks twice as far, but waits twice as long to trigger.
@@ -57,7 +70,7 @@ impl<T: Topology + Clone> PatienceBackjumpPolicy<T> {
             max_depth: 0,
             start: 0,
             levels: None,
-            _phantom: PhantomData
+            _phantom: PhantomData,
         }
     }
 
@@ -76,7 +89,7 @@ impl<T: Topology + Clone> PatienceBackjumpPolicy<T> {
 }
 
 impl<T: Topology + Clone + 'static> BacktrackPolicy<T> for PatienceBackjumpPolicy<T> {
-    fn init(&mut self, wave_propagator: &mut WavePropagator<T>) -> Result<(), String> {
+    fn init(&mut self, wave_propagator: &mut WavePropagator<T>) -> Result<(), TraitError> {
         let choice_observer = PatienceChoiceObserver {
             policy: self as *mut PatienceBackjumpPolicy<T>,
         };

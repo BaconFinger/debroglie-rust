@@ -14,7 +14,7 @@ use debroglie_rust::topology::topo_array::TopoArray;
 #[cfg(test)]
 
 #[test]
-pub fn adjacent_image_refactor() {
+pub fn adjacent_image_test() {
     // Arrange
     let width = 5;
     let height = 5;
@@ -87,7 +87,7 @@ pub fn adjacent_image_refactor() {
 }
 
 #[test]
-pub fn from_file_refactor() {
+pub fn test_from_file_snapshot() {
     let img = ImageReader::open("tests/samples/pathway.png").unwrap().decode().unwrap().into_rgba8();
     let img_array = image_to_rgba8_array(&img);
 

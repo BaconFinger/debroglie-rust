@@ -1,6 +1,6 @@
+use crate::tile::TileId;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
-use crate::tile::TileId;
 
 /// A set of tiles, specific to a particular TilePropagator.
 /// This struct internally caches some computations, making it faster
@@ -12,8 +12,7 @@ pub struct TilePropagatorTileSet {
 }
 
 impl TilePropagatorTileSet {
-    pub(crate) fn new(tiles: Vec<TileId>) -> Self
-    {
+    pub(crate) fn new(tiles: Vec<TileId>) -> Self {
         TilePropagatorTileSet {
             tiles,
             offset_to_patterns: HashMap::new(),
@@ -31,7 +30,8 @@ impl TilePropagatorTileSet {
 
 impl fmt::Display for TilePropagatorTileSet {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let tile_strings: Vec<String> = self.tiles
+        let tile_strings: Vec<String> = self
+            .tiles
             .iter()
             .map(|tile| format!("{:?}", tile))
             .collect();

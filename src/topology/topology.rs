@@ -1,37 +1,29 @@
-use std::any::Any;
-use std::fmt;
 use crate::topology::direction::{Direction, EdgeLabel};
 use crate::topology::grid_topology::GridTopology;
+use std::any::Any;
+use crate::trait_error::TraitError;
 
 /// Error types for topology operations
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, thiserror::Error)]
 pub enum TopologyError {
+    #[error("Index {index} is out of bounds (max: {max})")]
     IndexOutOfBounds { index: usize, max: usize },
+
+    #[error("Coordinate ({x}, {y}, {z}) is out of bounds")]
     CoordinateOutOfBounds { x: usize, y: usize, z: usize },
+
+    #[error("Invalid mask length: expected {expected}, got {actual}")]
     InvalidMaskLength { expected: usize, actual: usize },
 
-    Other(String),
+    #[error("expected a GridTopology")]
+    NotGridTopology,
+
+    #[error("unable to get topology")]
+    NoTopology,
+
+    #[error(transparent)]
+    TraitError(#[from] TraitError),
 }
-
-impl fmt::Display for TopologyError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            TopologyError::IndexOutOfBounds { index, max } => {
-                write!(f, "Index {} is out of bounds (max: {})", index, max)
-            }
-            TopologyError::CoordinateOutOfBounds { x, y, z } => {
-                write!(f, "Coordinate ({}, {}, {}) is out of bounds", x, y, z)
-            }
-            TopologyError::InvalidMaskLength { expected, actual } => {
-                write!(f, "Invalid mask length: expected {}, got {}", expected, actual)
-            }
-
-            TopologyError::Other(s) => write!(f, "Other error: {}", s),
-        }
-    }
-}
-
-impl std::error::Error for TopologyError {}
 
 /// A Topology specifies a discrete area, volume or graph, and provides generic navigation methods.
 /// Topologies are used to support generation in a wide variety of shapes.
@@ -160,11 +152,21 @@ pub trait Topology {
     }
 
     /// 2D convenience methods
-    fn try_move_2d(&self, x: usize, y: usize, direction: Direction) -> Result<Option<usize>, TopologyError> {
+    fn try_move_2d(
+        &self,
+        x: usize,
+        y: usize,
+        direction: Direction,
+    ) -> Result<Option<usize>, TopologyError> {
         self.try_move_coord(x, y, 0, direction)
     }
 
-    fn try_move_2d_to_coord(&self, x: usize, y: usize, direction: Direction) -> Result<Option<(usize, usize)>, TopologyError> {
+    fn try_move_2d_to_coord(
+        &self,
+        x: usize,
+        y: usize,
+        direction: Direction,
+    ) -> Result<Option<(usize, usize)>, TopologyError> {
         match self.try_move_coord_to_coord(x, y, 0, direction)? {
             Some((dest_x, dest_y, _)) => Ok(Some((dest_x, dest_y))),
             None => Ok(None),
@@ -190,10 +192,9 @@ pub trait Topology {
 
     /// Attempts to downcast this topology to a GridTopology
     fn as_grid_topology(&self) -> Result<&GridTopology, TopologyError> {
-        self
-            .as_any()
+        self.as_any()
             .downcast_ref::<GridTopology>()
-            .ok_or_else(|| TopologyError::Other("Expected a grid-based topology".to_string()))
+            .ok_or_else(|| TopologyError::NotGridTopology)
     }
 
     fn as_any(&self) -> &dyn Any;

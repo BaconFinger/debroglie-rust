@@ -2,9 +2,18 @@ use crate::models::tile_model_mapping::TileModelMapping;
 use crate::topology::topology::Topology;
 use crate::trackers::index_picker::IndexPicker;
 use crate::trackers::pattern_picker::PatternPicker;
-use crate::trackers::tracker::{Tracker};
+use crate::trackers::tracker::Tracker;
+use crate::trait_error::TraitError;
 use crate::wfc::wave::Wave;
 use crate::wfc::wave_propagator::WavePropagatorState;
+
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum EntropyTrackerError {
+    #[error("unable to get wave")]
+    WaveError,
+    #[error("unable to get random double")]
+    RandomDoubleError,
+}
 
 pub struct EntropyTracker {
     pattern_count: usize,
@@ -28,7 +37,12 @@ impl EntropyTracker {
     }
 
     // For debugging
-    pub fn init_debug<T: Topology + Clone + 'static>(&mut self, wave: &Wave, frequencies: Vec<f64>, mask: Option<Vec<bool>>) -> Result<(), String> {
+    pub fn init_debug<T: Topology + Clone + 'static>(
+        &mut self,
+        wave: &Wave,
+        frequencies: Vec<f64>,
+        mask: Option<Vec<bool>>,
+    ) -> Result<(), TraitError> {
         self.frequencies = frequencies;
         self.pattern_count = self.frequencies.len();
         self.mask = mask;
@@ -50,10 +64,17 @@ impl EntropyTracker {
 }
 
 impl<T: Topology + Clone + 'static> IndexPicker<T> for EntropyTracker {
-    fn init(&mut self, wave_propagator_state: &WavePropagatorState<T>, topology: &T) -> Result<(), String> {
+    fn init(
+        &mut self,
+        wave_propagator_state: &WavePropagatorState<T>,
+        topology: &T,
+    ) -> Result<(), TraitError> {
         {
             self.init_debug::<T>(
-                wave_propagator_state.get_wave().as_ref().ok_or("unable to get wave id")?,
+                wave_propagator_state
+                    .get_wave()
+                    .as_ref()
+                    .ok_or(EntropyTrackerError::WaveError)?,
                 wave_propagator_state.get_frequencies(),
                 topology.mask(),
             )?
@@ -61,7 +82,11 @@ impl<T: Topology + Clone + 'static> IndexPicker<T> for EntropyTracker {
         Ok(())
     }
 
-    fn get_random_index(&mut self, wave_propagator_state: &WavePropagatorState<T>, tile_model_mapping: &TileModelMapping<T>) -> Option<i32> {
+    fn get_random_index(
+        &mut self,
+        wave_propagator_state: &WavePropagatorState<T>,
+        tile_model_mapping: &TileModelMapping<T>,
+    ) -> Option<i32> {
         let mut selected_index = -1i32;
         let mut min_entropy = f64::INFINITY;
         let mut count_at_min_entropy = 0;
@@ -88,7 +113,8 @@ impl<T: Topology + Clone + 'static> IndexPicker<T> for EntropyTracker {
             }
         }
 
-        let mut n = (count_at_min_entropy as f64 * wave_propagator_state.get_random_double()()) as i32;
+        let mut n =
+            (count_at_min_entropy as f64 * wave_propagator_state.get_random_double()()) as i32;
 
         for i in 0..self.indices {
             if let Some(ref mask) = self.mask {
@@ -132,7 +158,7 @@ impl<T: Topology + Clone + 'static> IndexPicker<T> for EntropyTracker {
 }
 
 impl<T: Topology + Clone + 'static> Tracker<T> for EntropyTracker {
-    fn reset(&mut self) -> Result<(), String> {
+    fn reset(&mut self) -> Result<(), TraitError> {
         // Assumes Reset is called on a truly new Wave.
         let mut initial = EntropyValues::default();
         initial.plogp_sum = 0.0;
@@ -153,20 +179,14 @@ impl<T: Topology + Clone + 'static> Tracker<T> for EntropyTracker {
         Ok(())
     }
 
-    fn do_ban(&mut self, index: usize, pattern: usize) -> Result<(), String> {
-        self.entropy_values[index].decrement(
-            self.frequencies[pattern],
-            self.plogp[pattern],
-        );
+    fn do_ban(&mut self, index: usize, pattern: usize) -> Result<(), TraitError> {
+        self.entropy_values[index].decrement(self.frequencies[pattern], self.plogp[pattern]);
 
         Ok(())
     }
 
-    fn undo_ban(&mut self, index: usize, pattern: usize) -> Result<(), String> {
-        self.entropy_values[index].increment(
-            self.frequencies[pattern],
-            self.plogp[pattern],
-        );
+    fn undo_ban(&mut self, index: usize, pattern: usize) -> Result<(), TraitError> {
+        self.entropy_values[index].increment(self.frequencies[pattern], self.plogp[pattern]);
 
         Ok(())
     }
@@ -190,9 +210,9 @@ impl<T: Topology + Clone + 'static> Tracker<T> for EntropyTracker {
 
 #[derive(Debug, Clone, Copy, Default)]
 struct EntropyValues {
-    plogp_sum: f64,     // The sum of p'(pattern) * log(p'(pattern)).
-    sum: f64,           // The sum of p'(pattern).
-    entropy: f64,       // The entropy of the cell.
+    plogp_sum: f64, // The sum of p'(pattern) * log(p'(pattern)).
+    sum: f64,       // The sum of p'(pattern).
+    entropy: f64,   // The entropy of the cell.
 }
 
 impl EntropyValues {

@@ -1,6 +1,6 @@
+use image::{Pixel, Rgba};
 use std::fmt;
 use std::fmt::{Debug, Display};
-use image::{Pixel, Rgba};
 
 /// A unique identifier for a tile that lives in a Vec.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -15,12 +15,18 @@ pub struct Tile {
 
 #[derive(Clone, Debug, Eq, PartialEq, Default)]
 pub enum TileVisual {
-    Glyph { ch: char },
-    Text { text: String },
-    Pixel { pixel: Rgba<u8>},
+    Glyph {
+        ch: char,
+    },
+    Text {
+        text: String,
+    },
+    Pixel {
+        pixel: Rgba<u8>,
+    },
 
     #[default]
-    Default
+    Default,
 }
 
 // Compare to a single char
@@ -50,15 +56,12 @@ impl PartialEq<Rgba<u8>> for TileVisual {
     }
 }
 
-
 impl fmt::Display for TileVisual {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            TileVisual::Glyph { ch } =>
-                write!(f, "{}", ch),
+            TileVisual::Glyph { ch } => write!(f, "{}", ch),
 
-            TileVisual::Text { text } =>
-                write!(f, "{}", text),
+            TileVisual::Text { text } => write!(f, "{}", text),
 
             TileVisual::Pixel { pixel: image } => {
                 let rgba = image.channels();
@@ -66,7 +69,6 @@ impl fmt::Display for TileVisual {
             }
 
             TileVisual::Default => write!(f, "Default"),
-
             // TileVisual::Image { texture_id, base_uv } =>
             //     write!(f, "[Image tex:{} uv=({}, {}, {}, {})]",
             //            texture_id, base_uv.u0, base_uv.v0, base_uv.u1, base_uv.v1),
@@ -94,12 +96,8 @@ impl TileVisual {
 }
 
 impl Tile {
-    pub fn new(name: String, value: TileVisual) -> Self
-    {
-        Self {
-            name,
-            value,
-        }
+    pub fn new(name: String, value: TileVisual) -> Self {
+        Self { name, value }
     }
 
     pub fn from_char(ch: char) -> Self {

@@ -72,9 +72,7 @@ impl<T> Deque<T> {
 
         // We need to move the value out
         // This is tricky in Rust - we'll use unsafe or require Clone/Copy
-        unsafe {
-            Some(std::ptr::read(&self.data[hi]))
-        }
+        unsafe { Some(std::ptr::read(&self.data[hi])) }
     }
 
     #[inline]
@@ -111,9 +109,7 @@ impl<T> Deque<T> {
         }
         self.lo = lo;
 
-        unsafe {
-            std::ptr::read(&self.data[old_lo])
-        }
+        unsafe { std::ptr::read(&self.data[old_lo]) }
     }
 
     pub fn drop_first(&mut self, n: usize) {
@@ -212,7 +208,7 @@ impl<T> Deque<T> {
                 std::ptr::copy_nonoverlapping(
                     &self.data[i] as *const T,
                     &mut new_data[j] as *mut T,
-                    1
+                    1,
                 );
             }
 

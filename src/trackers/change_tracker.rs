@@ -1,10 +1,20 @@
-use std::fmt::Debug;
-use std::marker::PhantomData;
 use crate::models::tile_model_mapping::TileModelMapping;
 use crate::topology::topology::{Topology, TopologyError};
 use crate::trackers::index_picker::IndexPicker;
 use crate::trackers::pattern_picker::PatternPicker;
 use crate::trackers::tracker::Tracker;
+use crate::trait_error::TraitError;
+use std::fmt::Debug;
+use std::marker::PhantomData;
+
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum ChangeTrackerError {
+    #[error("ChangeTracker does not support more than {} executions", i32::MAX)]
+    TooManyExecutions,
+
+    #[error("unable to get mapping")]
+    NoMapping,
+}
 
 pub struct ChangeTracker<T: Topology + Clone> {
     index_count: usize,
@@ -44,7 +54,10 @@ impl<T: Topology + Clone> ChangeTracker<T> {
     }
 
     /// Returns the set of indices that have been changed since the last call.
-    pub fn get_changed_indices(&mut self, tile_model_mapping: &TileModelMapping<T>) -> Result<Vec<usize>, TopologyError> {
+    pub fn get_changed_indices(
+        &mut self,
+        tile_model_mapping: &TileModelMapping<T>,
+    ) -> Result<Vec<usize>, TopologyError> {
         let current_changed_indices = std::mem::take(&mut self.changed_indices);
 
         // Switch over double buffering
@@ -53,17 +66,20 @@ impl<T: Topology + Clone> ChangeTracker<T> {
         self.generation += 1;
 
         if self.generation == i32::MAX {
-            return Err(TopologyError::Other(
-                format!("Change Tracker doesn't support more than {} executions", i32::MAX)
-            ));
+            return Err(TopologyError::TraitError(ChangeTrackerError::TooManyExecutions.into()));
         }
 
-        if tile_model_mapping.pattern_coord_to_tile_coord_index_and_offset.is_none() {
+        if tile_model_mapping
+            .pattern_coord_to_tile_coord_index_and_offset
+            .is_none()
+        {
             Ok(current_changed_indices)
         } else {
             // Handle the overlapped case
-            let mapping = tile_model_mapping.pattern_coord_to_tile_coord_index_and_offset
-                .as_ref().ok_or(TopologyError::Other("unable to get mapping".to_string()))?;
+            let mapping = tile_model_mapping
+                .pattern_coord_to_tile_coord_index_and_offset
+                .as_ref()
+                .ok_or(TopologyError::TraitError(ChangeTrackerError::NoMapping.into()))?;
             let mut result = Vec::new();
 
             for i in current_changed_indices {
@@ -80,7 +96,7 @@ impl<T: Topology + Clone> ChangeTracker<T> {
 }
 
 impl<T: Topology + Clone> Tracker<T> for ChangeTracker<T> {
-    fn reset(&mut self) -> Result<(), String> {
+    fn reset(&mut self) -> Result<(), TraitError> {
         self.changed_indices = Vec::new();
         self.changed_indices2 = Vec::new();
         self.last_changed_generation = vec![0; self.index_count];
@@ -88,7 +104,7 @@ impl<T: Topology + Clone> Tracker<T> for ChangeTracker<T> {
         Ok(())
     }
 
-    fn do_ban(&mut self, index: usize, _pattern: usize) -> Result<(), String>{
+    fn do_ban(&mut self, index: usize, _pattern: usize) -> Result<(), TraitError> {
         let g = self.last_changed_generation[index];
         if g != self.generation {
             self.last_changed_generation[index] = self.generation;
@@ -97,7 +113,7 @@ impl<T: Topology + Clone> Tracker<T> for ChangeTracker<T> {
         Ok(())
     }
 
-    fn undo_ban(&mut self, index: usize, _pattern: usize) -> Result<(), String>{
+    fn undo_ban(&mut self, index: usize, _pattern: usize) -> Result<(), TraitError> {
         let g = self.last_changed_generation[index];
         if g != self.generation {
             self.last_changed_generation[index] = self.generation;

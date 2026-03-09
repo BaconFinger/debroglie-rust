@@ -12,7 +12,7 @@ use debroglie_rust::topology::topo_array::TopoArray;
 #[cfg(test)]
 
 #[test]
-pub fn full_test_refactor() {
+pub fn full_test() {
     // Arrange
     let width = 5;
     let height = 5;

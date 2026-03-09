@@ -1,21 +1,21 @@
 #![allow(unused_variables, dead_code)] // TODO: Reconsider this once we've ported most everything.
-pub mod context;
 pub mod tile;
 
 // #[cfg(test)]
 // mod full_test;
-pub mod topology;
-pub mod models;
-pub mod tile_propagator;
-pub mod resolution;
-pub mod wfc;
-pub mod point;
-pub mod tile_propagator_tile_set;
-pub mod trackers;
-pub mod tile_propagator_options;
 pub mod constraints;
-pub mod shared_mut_heap;
 pub mod heap;
+pub mod models;
+pub mod point;
+pub mod resolution;
+pub mod shared_mut_heap;
+pub mod tile_propagator;
+pub mod tile_propagator_options;
+pub mod tile_propagator_tile_set;
+pub mod topology;
+pub mod trackers;
+pub mod trait_error;
+pub mod wfc;
 
 pub fn add(left: u64, right: u64) -> u64 {
     left + right
