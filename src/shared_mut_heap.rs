@@ -95,6 +95,7 @@ where
             return;
         }
 
+        // TODO: Does everything still work if this is self.size - 1?
         let start = Self::parent(self.size); // match C#, was let start = Self::parent(self.size - 1);
         for i in (0..=start).rev() {
             self.heapify_at(i);
@@ -173,7 +174,8 @@ where
     pub fn insert(&mut self, item: Rc<RefCell<T>>) {
         // Ensure capacity
         if self.data.len() == self.size {
-            self.data.reserve(std::cmp::max(1, self.size));
+            self.data.reserve(std::cmp::max(1, self.size * 2));
+            // self.data.reserve(std::cmp::max(1, self.size));
         }
 
         // Add item at the end
@@ -242,6 +244,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::*;
 
     #[derive(Debug, Clone)]

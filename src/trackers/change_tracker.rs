@@ -53,6 +53,7 @@ impl<T: Topology + Clone> ChangeTracker<T> {
         self.changed_indices.len()
     }
 
+    // TODO: Test how this works in practice. It looks like it resets changed_indices whenever it's called.
     /// Returns the set of indices that have been changed since the last call.
     pub fn get_changed_indices(
         &mut self,
@@ -66,7 +67,9 @@ impl<T: Topology + Clone> ChangeTracker<T> {
         self.generation += 1;
 
         if self.generation == i32::MAX {
-            return Err(TopologyError::TraitError(ChangeTrackerError::TooManyExecutions.into()));
+            return Err(TopologyError::TraitError(
+                ChangeTrackerError::TooManyExecutions.into(),
+            ));
         }
 
         if tile_model_mapping
@@ -79,7 +82,9 @@ impl<T: Topology + Clone> ChangeTracker<T> {
             let mapping = tile_model_mapping
                 .pattern_coord_to_tile_coord_index_and_offset
                 .as_ref()
-                .ok_or(TopologyError::TraitError(ChangeTrackerError::NoMapping.into()))?;
+                .ok_or(TopologyError::TraitError(
+                    ChangeTrackerError::NoMapping.into(),
+                ))?;
             let mut result = Vec::new();
 
             for i in current_changed_indices {

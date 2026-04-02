@@ -1,5 +1,3 @@
-use std::rc::Rc;
-use std::sync::Mutex;
 use debroglie_rust::models::adjacent_model::AdjacentModel;
 use debroglie_rust::resolution::Resolution;
 use debroglie_rust::tile::{Tile, TileVisual, ToTile};
@@ -8,9 +6,10 @@ use debroglie_rust::tile_propagator_options::{BacktrackType, TilePropagatorOptio
 use debroglie_rust::topology::grid_topology::GridTopology;
 use debroglie_rust::topology::ragged_topology_array_2d::RaggedTopoArray2D;
 use debroglie_rust::topology::topo_array::TopoArray;
+use std::rc::Rc;
+use std::sync::Mutex;
 
 #[cfg(test)]
-
 #[test]
 pub fn full_test() {
     // Arrange
@@ -23,12 +22,7 @@ pub fn full_test() {
     ];
     let initial_vec = initial_data
         .into_iter()
-        .map(|x| x
-            .clone()
-            .iter()
-            .map(|y| y.to_tile())
-            .collect::<Vec<Tile>>()
-        )
+        .map(|x| x.clone().iter().map(|y| y.to_tile()).collect::<Vec<Tile>>())
         .collect::<Vec<Vec<Tile>>>();
 
     let topology = GridTopology::new_2d(width, height, false);
@@ -50,7 +44,8 @@ pub fn full_test() {
     let model = Box::new(model);
 
     // Act
-    let mut tile_propagator = TilePropagator::with_options(model, topology.clone(), tile_propagator_options).unwrap();
+    let mut tile_propagator =
+        TilePropagator::with_options(model, topology.clone(), tile_propagator_options).unwrap();
     let status = tile_propagator.run().unwrap();
     assert_ne!(status, Resolution::Contradiction);
 
@@ -93,12 +88,7 @@ pub fn speed_test() {
     ];
     let initial_vec = initial_data
         .into_iter()
-        .map(|x| x
-            .clone()
-            .iter()
-            .map(|y| y.to_tile())
-            .collect::<Vec<Tile>>()
-        )
+        .map(|x| x.clone().iter().map(|y| y.to_tile()).collect::<Vec<Tile>>())
         .collect::<Vec<Vec<Tile>>>();
 
     let topology = GridTopology::new_2d(width, height, false);
@@ -120,7 +110,8 @@ pub fn speed_test() {
     let model = Box::new(model);
 
     // Act
-    let mut tile_propagator = TilePropagator::with_options(model, topology.clone(), tile_propagator_options).unwrap();
+    let mut tile_propagator =
+        TilePropagator::with_options(model, topology.clone(), tile_propagator_options).unwrap();
     let status = tile_propagator.run().unwrap();
     assert_ne!(status, Resolution::Contradiction);
 
@@ -131,7 +122,9 @@ pub fn speed_test() {
     println!("Time elapsed: {:?}", end - start);
 }
 
-fn output_to_visuals(output_result: Box<dyn TopoArray<TileVisual, GridTopology>>) -> Vec<Vec<TileVisual>> {
+fn output_to_visuals(
+    output_result: Box<dyn TopoArray<TileVisual, GridTopology>>,
+) -> Vec<Vec<TileVisual>> {
     let mut output_visuals: Vec<Vec<TileVisual>> = vec![Vec::new(); 0];
     for y in 0..5 {
         if output_visuals.len() < y + 1 {
@@ -147,6 +140,29 @@ fn output_to_visuals(output_result: Box<dyn TopoArray<TileVisual, GridTopology>>
     output_visuals
 }
 
+#[test]
+// Used to guard against regressions in the pcg32 implementation
+pub fn pcg32_test() {
+    let expected = vec![
+        0.3286364133429067,
+        0.7824954060203275,
+        0.14642473965720237,
+        0.5659021480618759,
+        0.2598910905544348,
+        0.33108426512400624,
+        0.9020299408067738,
+        0.3494575854319545,
+        0.23938741509007289,
+        0.26160627535898817,
+    ];
+    let mut rng = Pcg32::new(12345);
+
+    for i in 0..10 {
+        let num = rng.next_f64();
+        assert_eq!(expected[i], num);
+    }
+}
+
 /// Just for testing that the C# and Rust implementations produce the same output.
 #[derive(Clone)]
 pub struct Pcg32 {
@@ -155,7 +171,7 @@ pub struct Pcg32 {
 
 impl Pcg32 {
     const MULTIPLIER: u64 = 6364136223846793005;
-    const INCREMENT:  u64 = 1442695040888963407;
+    const INCREMENT: u64 = 1442695040888963407;
 
     /// Create a new PCG32 RNG from a 64-bit seed.
     pub fn new(seed: u64) -> Self {
@@ -188,7 +204,7 @@ impl Pcg32 {
         // Standard technique: combine 27 + 26 random bits into a 53-bit mantissa.
         let hi = (self.next_u32() >> 5) as u64; // 27 bits
         let lo = (self.next_u32() >> 6) as u64; // 26 bits
-        let value = (hi << 26) | lo;           // 53 bits total
+        let value = (hi << 26) | lo; // 53 bits total
 
         (value as f64) * (1.0 / ((1u64 << 53) as f64))
     }
