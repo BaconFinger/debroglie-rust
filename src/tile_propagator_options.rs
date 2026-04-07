@@ -1,4 +1,4 @@
-use crate::constraints::tile_constraint::TileConstraint;
+use crate::constraints::tile_constraint::Constraint;
 use crate::tile::TileId;
 use crate::topology::dummy_topo_array::DummyTopoArray;
 use crate::topology::topo_array::TopoArray;
@@ -67,7 +67,7 @@ pub struct TilePropagatorOptions<V, T: Topology + Clone> {
     pub max_backtrack_depth: i32,
 
     /// Extra constraints to control the generation process
-    pub constraints: Vec<Box<dyn TileConstraint<T>>>,
+    pub constraints: Vec<Box<dyn Constraint<T>>>,
 
     /// Source of randomness used by generation.
     /// A lot of randomness implementations that support seeding will mutate the underlying
@@ -112,7 +112,7 @@ impl<V: Clone + 'static, T: Topology + Clone + 'static> TilePropagatorOptions<V,
     pub fn new(
         backtrack: bool,
         random_double: Option<Rc<dyn Fn() -> f64>>,
-        constraints: Option<Vec<Box<dyn TileConstraint<T>>>>,
+        constraints: Option<Vec<Box<dyn Constraint<T>>>>,
     ) -> Self {
         Self {
             backtrack: if backtrack {

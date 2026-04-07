@@ -1,4 +1,4 @@
-use crate::constraints::tile_constraint::TileConstraint;
+use crate::constraints::tile_constraint::Constraint;
 use crate::models::tile_model::TileModel;
 use crate::models::tile_model_mapping::TileModelMapping;
 use crate::resolution::Resolution;
@@ -21,8 +21,8 @@ use crate::wfc::backtrack_policy::{
     BacktrackPolicy, ConstantBacktrackPolicy, PatienceBackjumpPolicy,
 };
 use crate::wfc::wave_propagator::{
-    ModelConstraintAlgorithm, WaveConstraint, WavePropagator, WavePropagatorError,
-    WavePropagatorOptions, WavePropagatorState,
+    ModelConstraintAlgorithm, WavePropagator, WavePropagatorError, WavePropagatorOptions,
+    WavePropagatorState,
 };
 use std::cell::RefCell;
 use std::marker::PhantomData;
@@ -101,7 +101,7 @@ where
         tile_model: Box<dyn TileModel<T>>,
         topology: T,
         backtrack: bool,
-        constraints: Option<Vec<Box<dyn TileConstraint<T>>>>,
+        constraints: Option<Vec<Box<dyn Constraint<T>>>>,
     ) -> Result<Self, TilePropagatorError> {
         let options = TilePropagatorOptions {
             backtrack: if backtrack {
@@ -335,9 +335,10 @@ where
         Ok((index_picker.unwrap(), pattern_picker.unwrap()))
     }
 
+    // TODO: Is this needed? Constraint should handle Wave and Tile constraints now. Cannot determine yet.
     fn convert_constraints(
-        constraints: &Vec<Box<dyn TileConstraint<T>>>,
-    ) -> Result<Vec<WaveConstraint>, TilePropagatorError> {
+        constraints: &Vec<Box<dyn Constraint<T>>>,
+    ) -> Result<Vec<Box<dyn Constraint<T>>>, TilePropagatorError> {
         // println!("Have {} constraints", constraints.len());
         return Ok(Vec::new());
         // let mut wave_constraints = Vec::new();

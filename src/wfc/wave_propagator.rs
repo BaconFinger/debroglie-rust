@@ -1,7 +1,8 @@
+use crate::constraints::tile_constraint::{Constraint, ConstraintDependencies, ConstraintError};
 use crate::models::tile_model_mapping::TileModelMapping;
 use crate::resolution::Resolution;
 use crate::tile_propagator::TilePropagatorState;
-use crate::topology::topology::Topology;
+use crate::topology::topology::{Topology, TopologyError};
 use crate::trackers::entropy_tracker::EntropyTracker;
 use crate::trackers::index_picker::IndexPicker;
 use crate::trackers::pattern_picker::PatternPicker;
@@ -26,8 +27,6 @@ pub struct Optimizations;
 impl Optimizations {
     pub const QUICK_SELECT: bool = false;
 }
-
-pub struct WaveConstraint {} // TODO: implement
 
 // TODO: implement
 #[derive(Debug, Clone, Copy)]
@@ -73,8 +72,14 @@ pub enum WavePropagatorError {
     #[error("unable to get wave")]
     CannotGetWave,
 
+    #[error("error running constraint {error}")]
+    ConstraintError { error: String },
+
     #[error(transparent)]
     TraitError(#[from] TraitError),
+
+    #[error(transparent)]
+    TopologyError(#[from] TopologyError),
 }
 
 pub struct WavePropagator<T: Topology + Clone> {
@@ -97,7 +102,7 @@ pub struct WavePropagator<T: Topology + Clone> {
     index_count: usize,
     backtrack: bool,
     max_backtrack_depth: i32,
-    constraints: Vec<WaveConstraint>,
+    constraints: Vec<Box<dyn Constraint<T>>>,
 
     // Deferred constraints
     deferred_constraints_step: bool,
@@ -116,10 +121,10 @@ pub struct WavePropagator<T: Topology + Clone> {
 }
 
 // Options struct for WavePropagator
-pub struct WavePropagatorOptions<T: Topology + Clone> {
+pub struct WavePropagatorOptions<T: Topology + Clone + 'static> {
     pub backtrack_policy: Option<Box<dyn BacktrackPolicy<T>>>,
     pub max_backtrack_depth: i32,
-    pub constraints: Option<Vec<WaveConstraint>>,
+    pub constraints: Option<Vec<Box<dyn Constraint<T>>>>,
     pub random_double: Option<Rc<dyn Fn() -> f64>>,
     pub index_picker: Option<Box<dyn IndexPicker<T>>>,
     pub pattern_picker: Option<Box<dyn PatternPicker<T>>>,
@@ -343,11 +348,8 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
             return Ok(self.state.status);
         }
 
-        self.init_constraints(
-            tile_propagator_state.get_topology(),
-            pattern_model_constraint,
-        )
-        .ok();
+        self.init_constraints(tile_propagator_state, pattern_model_constraint)
+            .ok();
 
         self.pattern_model_constraint = pattern_model_constraint_owner;
         Ok(self.state.status)
@@ -355,29 +357,32 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
 
     fn init_constraints(
         &mut self,
-        topology: &T,
+        tile_propagator_state: &TilePropagatorState<T>,
         pattern_model_constraint: &mut dyn PatternModelConstraint<T>,
     ) -> Result<(), WavePropagatorError> {
-        // Note: constraints would need to be handled differently in Rust
-        // This is a simplified version
-        let constraints_len = self.constraints.len();
+        let mut constraints = mem::replace(&mut self.constraints, Vec::new());
 
-        for _i in 0..constraints_len {
-            // constraint.init(self);
-            {
-                if self.state.status != Resolution::Undecided {
-                    return Ok(());
+        for constraint in &mut constraints {
+            let mut dependencies =
+                ConstraintDependencies::new(tile_propagator_state, self, pattern_model_constraint);
+
+            constraint.init(&mut dependencies).map_err(|e| {
+                WavePropagatorError::ConstraintError {
+                    error: e.to_string(),
                 }
+            })?;
+
+            if self.state.status != Resolution::Undecided {
+                break;
             }
 
-            pattern_model_constraint.propagate(topology, self)?;
+            pattern_model_constraint.propagate(tile_propagator_state.get_topology(), self)?;
 
-            {
-                if self.state.status != Resolution::Undecided {
-                    return Ok(());
-                }
+            if self.state.status != Resolution::Undecided {
+                break;
             }
         }
+        self.constraints = constraints;
         Ok(())
     }
 
@@ -554,6 +559,42 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
         }
 
         Ok(())
+    }
+
+    pub fn ban(
+        &mut self,
+        x: i32,
+        y: i32,
+        z: i32,
+        pattern: i32,
+        state: &TilePropagatorState<T>,
+        pattern_model_constraint: &mut dyn PatternModelConstraint<T>,
+    ) -> Result<Resolution, WavePropagatorError> {
+        let index = state
+            .get_topology()
+            .get_index(x as usize, y as usize, z as usize)?;
+
+        let found = {
+            let wave = self
+                .state
+                .wave
+                .as_ref()
+                .ok_or(WavePropagatorError::CannotGetWave)?;
+
+            wave.get(index, pattern as usize)
+        };
+
+        if found {
+            self.deferred_constraints_step = true;
+            let did_ban = self.internal_ban(index, pattern as usize, pattern_model_constraint);
+            if did_ban.is_some() && did_ban.unwrap() {
+                self.state.status = Resolution::Contradiction;
+                return Ok(Resolution::Contradiction);
+            }
+        }
+
+        pattern_model_constraint.propagate(state.get_topology(), self)?;
+        Ok(self.state.status)
     }
 
     // Internal API for constraints
@@ -848,6 +889,10 @@ impl<T: Topology + Clone + 'static> WavePropagator<T> {
 
     pub fn get_state(&self) -> &WavePropagatorState<T> {
         &self.state
+    }
+
+    pub fn get_pattern_count(&self) -> usize {
+        self.pattern_count
     }
 }
 
