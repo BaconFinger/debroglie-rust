@@ -1,4 +1,5 @@
 pub mod direction;
+pub mod dummy_topo_array;
 pub mod grid_topology;
 pub mod ragged_topology_array_2d;
 pub mod topo_array;

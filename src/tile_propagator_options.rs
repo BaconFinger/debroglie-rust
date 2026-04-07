@@ -1,6 +1,6 @@
 use crate::constraints::tile_constraint::TileConstraint;
 use crate::tile::TileId;
-use crate::tile_propagator::DummyTopoArray;
+use crate::topology::dummy_topo_array::DummyTopoArray;
 use crate::topology::topo_array::TopoArray;
 use crate::topology::topology::Topology;
 use crate::wfc::wave_propagator::ModelConstraintAlgorithm;
