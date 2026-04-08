@@ -24,6 +24,9 @@ pub enum TileVisual {
     Pixel {
         pixel: Rgba<u8>,
     },
+    Int {
+        int: i32,
+    },
 
     #[default]
     Default,
@@ -56,6 +59,12 @@ impl PartialEq<Rgba<u8>> for TileVisual {
     }
 }
 
+impl PartialEq<i32> for TileVisual {
+    fn eq(&self, other: &i32) -> bool {
+        matches!(self, TileVisual::Int { int } if int == other)
+    }
+}
+
 impl fmt::Display for TileVisual {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -67,6 +76,8 @@ impl fmt::Display for TileVisual {
                 let rgba = image.channels();
                 write!(f, "[RGBA {},{},{},{}]", rgba[0], rgba[1], rgba[2], rgba[3])
             }
+
+            TileVisual::Int { int } => write!(f, "{}", int),
 
             TileVisual::Default => write!(f, "Default"),
             // TileVisual::Image { texture_id, base_uv } =>
@@ -83,6 +94,12 @@ pub trait ToTileVisual {
 impl ToTileVisual for char {
     fn to_tile_visual(self) -> TileVisual {
         TileVisual::Glyph { ch: self }
+    }
+}
+
+impl ToTileVisual for i32 {
+    fn to_tile_visual(self) -> TileVisual {
+        TileVisual::Int { int: self }
     }
 }
 
@@ -111,6 +128,11 @@ impl Tile {
 
     pub fn from_pixel(pixel: Rgba<u8>) -> Self {
         Self::new(format!("{:?}", pixel), TileVisual::Pixel { pixel })
+    }
+
+    pub fn from_i32(int: i32) -> Self {
+        let name = format!("{}", int);
+        Self::new(name, TileVisual::Int { int })
     }
 
     pub fn get_name(&self) -> &String {
@@ -147,6 +169,12 @@ impl ToTile for char {
 impl ToTile for Rgba<u8> {
     fn to_tile(self) -> Tile {
         Tile::from_pixel(self)
+    }
+}
+
+impl ToTile for i32 {
+    fn to_tile(self) -> Tile {
+        Tile::from_i32(self)
     }
 }
 
