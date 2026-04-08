@@ -2,13 +2,32 @@ use image::{Pixel, Rgba};
 use std::fmt;
 use std::fmt::{Debug, Display};
 
-/// A unique identifier for a tile that lives in a Vec.
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+pub struct Counter;
+
+static COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+impl Counter {
+    pub fn next() -> usize {
+        COUNTER.fetch_add(1, Ordering::Relaxed)
+    }
+}
+
+/// A unique identifier for a Tile. Used in place of a Tile where owning or borrowing isn't appropriate.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct TileId(pub usize);
+
+impl Default for TileId {
+    fn default() -> Self {
+        Self(Counter::next())
+    }
+}
 
 /// Thin wrapper around a value of any type. This is primarily what the library takes in and puts out.
 #[derive(Clone, Debug, Default)]
 pub struct Tile {
+    id: TileId,
     name: String, // TODO: Consider removing this.
     value: TileVisual,
 }
@@ -114,7 +133,7 @@ impl TileVisual {
 
 impl Tile {
     pub fn new(name: String, value: TileVisual) -> Self {
-        Self { name, value }
+        Self { name, value, id: TileId(Counter::next()) }
     }
 
     pub fn from_char(ch: char) -> Self {
@@ -141,6 +160,10 @@ impl Tile {
 
     pub fn get_value(&self) -> &TileVisual {
         &self.value
+    }
+
+    pub fn get_id(&self) -> TileId {
+        self.id
     }
 }
 
