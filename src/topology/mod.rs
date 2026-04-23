@@ -5,3 +5,5 @@ pub mod ragged_topology_array_2d;
 pub mod topo_array;
 pub mod topo_array_1d;
 pub mod topology;
+pub mod topo_array_utils;
+pub mod topo_array_3d;

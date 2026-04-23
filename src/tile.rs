@@ -1,8 +1,11 @@
 use image::{Pixel, Rgba};
 use std::fmt;
 use std::fmt::{Debug, Display};
-
+use std::hash::Hash;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::OnceLock;
+use crate::rot::rotated_tile::RotatedTile;
+use crate::rot::rotations::Rotation;
 
 pub struct Counter;
 
@@ -18,6 +21,8 @@ impl Counter {
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct TileId(pub usize);
 
+pub static DEFAULT_TILE: OnceLock<Tile> = OnceLock::new();
+
 impl Default for TileId {
     fn default() -> Self {
         Self(Counter::next())
@@ -30,6 +35,7 @@ pub struct Tile {
     id: TileId,
     name: String, // TODO: Consider removing this.
     value: TileVisual,
+    pub rotation: Option<Rotation>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Default)]
@@ -122,6 +128,32 @@ impl ToTileVisual for i32 {
     }
 }
 
+impl Hash for TileVisual {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        match self {
+            TileVisual::Glyph { ch } => {
+                0u8.hash(state);
+                ch.hash(state);
+            }
+            TileVisual::Text { text } => {
+                1u8.hash(state);
+                text.hash(state);
+            }
+            TileVisual::Pixel { pixel } => {
+                2u8.hash(state);
+                pixel.0.hash(state);
+            }
+            TileVisual::Int { int } => {
+                3u8.hash(state);
+                int.hash(state);
+            }
+            TileVisual::Default => {
+                4u8.hash(state);
+            }
+        }
+    }
+}
+
 impl TileVisual {
     pub fn as_pixel(&self) -> Option<&Rgba<u8>> {
         match self {
@@ -133,7 +165,12 @@ impl TileVisual {
 
 impl Tile {
     pub fn new(name: String, value: TileVisual) -> Self {
-        Self { name, value, id: TileId(Counter::next()) }
+        Self {
+            name,
+            value,
+            id: TileId(Counter::next()),
+            rotation: None,
+        }
     }
 
     pub fn from_char(ch: char) -> Self {
@@ -164,6 +201,10 @@ impl Tile {
 
     pub fn get_id(&self) -> TileId {
         self.id
+    }
+
+    pub fn default_tile_ref() -> &'static Tile {
+        DEFAULT_TILE.get_or_init(Tile::default)
     }
 }
 
@@ -199,6 +240,15 @@ impl ToTile for i32 {
     fn to_tile(self) -> Tile {
         Tile::from_i32(self)
     }
+}
+
+impl Hash for Tile {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.value.hash(state)
+    }
+}
+
+impl Eq for Tile {
 }
 
 // mod tests {

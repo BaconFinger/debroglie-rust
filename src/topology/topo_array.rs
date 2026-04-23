@@ -53,9 +53,9 @@ pub trait TopoArray2D<T, Topo: Topology + Clone> {
     fn get_contents(&self) -> &Vec<Vec<T>>;
 }
 
-pub trait TopoArray3D<T, Topo: Topology + Clone> {
-    fn get_contents(&self) -> &Vec<Vec<Vec<T>>>;
-}
+// pub trait TopoArray3D<T, Topo: Topology + Clone> {
+//     fn get_contents(&self) -> &Vec<Vec<Vec<T>>>;
+// }
 
 /// A mutable array coupled with a specific Topology
 pub trait TopoArrayMut<T: Clone + 'static, Topo: Topology + Clone>: TopoArray<T, Topo> {

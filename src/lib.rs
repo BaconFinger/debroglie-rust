@@ -16,6 +16,7 @@ pub mod topology;
 pub mod trackers;
 pub mod trait_error;
 pub mod wfc;
+mod rot;
 
 pub fn add(left: u64, right: u64) -> u64 {
     left + right
