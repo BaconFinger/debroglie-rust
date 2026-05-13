@@ -88,3 +88,38 @@ impl Display for Rotation {
         write!(f, "!{}{}", inner, self.rotate_cw)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    pub fn test_hash_val_equal() {
+        let r1 = Rotation::new(0, false);
+        let r2 = Rotation::new(0, false);
+        assert_eq!(r1.get_hash_code(), r2.get_hash_code());
+    }
+
+    /// Test that if the rotation is equal, then any copies or references can be used to get
+    /// the same value in a HashMap.
+    #[test]
+    pub fn test_hash_equal() {
+        // Arrange
+        let r1 = Rotation::new(0, false);
+        let r2 = Rotation::new(0, false);
+        let mut map = std::collections::HashMap::new();
+        map.insert(r1, 1);
+
+        // Act
+        let result_1 = map.get(&r1.clone());
+        let result_1_ref = map.get(&r1);
+        let result_2 = map.get(&r2.clone());
+        let result_2_ref = map.get(&r2);
+
+        // Assert
+        assert_eq!(result_1, Some(&1));
+        assert_eq!(result_1_ref, Some(&1));
+        assert_eq!(result_2, Some(&1));
+        assert_eq!(result_2_ref, Some(&1));
+    }
+}

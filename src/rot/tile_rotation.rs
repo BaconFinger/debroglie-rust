@@ -1,8 +1,10 @@
+use std::borrow::BorrowMut;
 use std::collections::HashMap;
 use crate::rot::rotation_group::RotationGroup;
 use crate::rot::rotations::Rotation;
 use crate::tile::Tile;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TileRotationTreatment
 {
     Missing,
@@ -15,6 +17,7 @@ pub enum TileRotationTreatment
 /// Describes which rotations and reflections are allowed, and
 /// and stores how to process each tile during a rotation.
 /// These are constructed with a TileRotationBuilder
+#[derive(Clone, Debug)]
 pub struct TileRotation {
     rotation_group: RotationGroup,
     default_treatment: TileRotationTreatment,
@@ -32,12 +35,45 @@ impl TileRotation {
         }
     }
 
+    pub fn build(
+        rotations: HashMap<Tile, HashMap<Rotation, Tile>>,
+        treatments: HashMap<Tile, TileRotationTreatment>,
+        default_treatment: TileRotationTreatment,
+        rotation_group: RotationGroup,
+    ) -> Self {
+        Self {
+            rotations,
+            treatments,
+            default_treatment,
+            rotation_group,
+        }
+    }
+
+    /*
+        // Used by TileRotationBuilder
+        internal TileRotation(
+            IDictionary<Tile, IDictionary<Rotation, Tile>> rotations,
+            IDictionary<Tile, TileRotationTreatment> treatments,
+            TileRotationTreatment defaultTreatment,
+            RotationGroup rotationGroup)
+        {
+            this.rotations = rotations;
+            this.treatments = treatments;
+            this.defaultTreatment = defaultTreatment;
+            this.rotationGroup = rotationGroup;
+        }
+     */
+
     pub fn default() -> Self {
         Self::new(1, false)
     }
 
     pub fn get_rotation_group(&self) -> &RotationGroup {
         &self.rotation_group
+    }
+
+    pub fn get_rotation_group_mut(&mut self) -> &mut RotationGroup {
+        self.rotation_group.borrow_mut()
     }
 
     /// Attempts to reflect, then rotate clockwise, a given Tile.

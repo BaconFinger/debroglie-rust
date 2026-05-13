@@ -172,6 +172,15 @@ impl Tile {
             rotation: None,
         }
     }
+    
+    pub fn new_rotated(name: String, value: TileVisual, rot: Rotation) -> Self {
+        Self {
+            name,
+            value,
+            id: TileId(Counter::next()),
+            rotation: Some(rot),
+        }
+    }
 
     pub fn from_char(ch: char) -> Self {
         let name = format!("{}", ch);
